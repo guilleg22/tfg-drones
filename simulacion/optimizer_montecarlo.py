@@ -114,8 +114,8 @@ def optimize_montecarlo(
     sim = Simulator(charger_power_w=charger_power_w)
     evaluator = ObjectiveEvaluator(sim, scenarios, objective, baseline=baseline)
 
-    # Generar muestras con LHS y escalar al rango deseado
-    raw_samples = _latin_hypercube_sample(n_trials, 4, rng)
+    # Generar muestras con LHS y escalar al rango deseado (5 pesos: w1..w5)
+    raw_samples = _latin_hypercube_sample(n_trials, 5, rng)
     samples = raw_samples * (w_range[1] - w_range[0]) + w_range[0]
 
     all_trials: list[dict] = []

@@ -80,8 +80,9 @@ def cost_matrix_assign(
     all_assignments: list[Assignment] = []
     pending_orders = list(orders)  # copia para no mutar input
 
-    # Copiar baterías
+    # Copiar baterías y tiempo acumulado (para el término w5 de balanceo)
     batteries = [d.battery_wh for d in drones]
+    acc_times = [getattr(d, "accumulated_time_s", 0.0) for d in drones]
     specs = [d.spec for d in drones]
 
     round_num = 0
@@ -97,9 +98,10 @@ def cost_matrix_assign(
         order_weights = [o.weight_kg for o in pending_orders]
         distances = [[o.distance_km for o in pending_orders] for _ in range(n_drones)]
 
-        # Construir matriz de costes
+        # Construir matriz de costes (con tiempo acumulado para w5)
         cost_matrix = build_cost_matrix(
-            specs, batteries, order_weights, distances, weights, charger_power_w
+            specs, batteries, order_weights, distances, weights, charger_power_w,
+            drone_accumulated_times_s=acc_times,
         )
 
         # Verificar si hay alguna asignación factible
@@ -135,8 +137,9 @@ def cost_matrix_assign(
                 )
             )
 
-            # Actualizar batería
+            # Actualizar batería y tiempo acumulado (para w5)
             batteries[r] -= e_trip
+            acc_times[r] += t_trip
             assigned_order_indices.add(c)
             made_assignment = True
 

@@ -28,32 +28,42 @@ from simulacion.energy_model import (
 
 @dataclass
 class CostWeights:
-    """Pesos de la función de costes (4 términos)."""
+    """Pesos de la función de costes (5 términos en la solución mejorada).
+
+    El 5º término (w5) es la novedad de la solución mejorada: penaliza asignar
+    a drones que ya acumulan mucho tiempo de trabajo, haciendo la asignación
+    consciente del makespan (balanceo de carga). Con w5=0 el comportamiento es
+    idéntico a la solución base de 4 términos.
+    """
 
     w1: float = 1.0  # energía de viaje
     w2: float = 1.0  # equilibrio de batería
     w3: float = 1.0  # exceso de capacidad
     w4: float = 1.0  # tiempo de espera por recarga
+    w5: float = 0.0  # balanceo de carga (tiempo acumulado del dron) — NUEVO
 
     def as_array(self) -> np.ndarray:
-        """Convierte a array numpy [w1, w2, w3, w4]."""
-        return np.array([self.w1, self.w2, self.w3, self.w4], dtype=np.float64)
+        """Convierte a array numpy [w1, w2, w3, w4, w5]."""
+        return np.array([self.w1, self.w2, self.w3, self.w4, self.w5], dtype=np.float64)
 
     @classmethod
     def from_array(cls, arr) -> CostWeights:
-        """Crea CostWeights desde un array/lista de 4 valores."""
-        return cls(w1=float(arr[0]), w2=float(arr[1]), w3=float(arr[2]), w4=float(arr[3]))
+        """Crea CostWeights desde un array/lista de 4 o 5 valores."""
+        w5 = float(arr[4]) if len(arr) > 4 else 0.0
+        return cls(w1=float(arr[0]), w2=float(arr[1]), w3=float(arr[2]),
+                   w4=float(arr[3]), w5=w5)
 
     def normalized(self) -> CostWeights:
         """Retorna una copia con pesos normalizados para que sumen 1."""
-        total = self.w1 + self.w2 + self.w3 + self.w4
+        total = self.w1 + self.w2 + self.w3 + self.w4 + self.w5
         if total <= 0:
-            return CostWeights(0.25, 0.25, 0.25, 0.25)
+            return CostWeights(0.2, 0.2, 0.2, 0.2, 0.2)
         return CostWeights(
             w1=self.w1 / total,
             w2=self.w2 / total,
             w3=self.w3 / total,
             w4=self.w4 / total,
+            w5=self.w5 / total,
         )
 
 
@@ -69,6 +79,11 @@ _MAX_CHARGE_TIME_REF_S = estimate_charge_time_s(360.0, 180.0)  # ~7200 s
 # ── Función de costes ────────────────────────────────────────────────────────
 
 
+# Referencia para normalizar el tiempo acumulado del dron (término w5).
+# ~1 hora de trabajo acumulado equivale a t5 = 1.0.
+_LOAD_TIME_REF_S = 3600.0
+
+
 def compute_cost(
     drone_spec: DroneSpec,
     drone_battery_wh: float,
@@ -76,6 +91,8 @@ def compute_cost(
     distance_km: float,
     weights: CostWeights,
     charger_power_w: float = 180.0,
+    drone_accumulated_time_s: float = 0.0,
+    load_time_ref_s: float = _LOAD_TIME_REF_S,
 ) -> float:
     """
     Calcula el coste C(i,j) de asignar el dron i al pedido j.
@@ -93,9 +110,14 @@ def compute_cost(
     distance_km : float
         Distancia de ida parking→cliente (km).
     weights : CostWeights
-        Pesos w1, w2, w3, w4.
+        Pesos w1, w2, w3, w4, w5.
     charger_power_w : float
         Potencia del cargador (W), para calcular T_espera.
+    drone_accumulated_time_s : float
+        Tiempo de trabajo (vuelo + recarga) ya acumulado por este dron.
+        Alimenta el término w5 de balanceo de carga. NUEVO en la mejora.
+    load_time_ref_s : float
+        Referencia para normalizar el tiempo acumulado a [0,1].
 
     Returns
     -------
@@ -145,8 +167,17 @@ def compute_cost(
     else:
         t4 = 0.0
 
+    # ── Término 5: Balanceo de carga [0,1] (NUEVO) ──
+    # Penaliza asignar a un dron que ya acumula mucho tiempo de trabajo, para
+    # repartir la carga y reducir el makespan (el dron "cuello de botella").
+    if load_time_ref_s > 0:
+        t5 = min(drone_accumulated_time_s / load_time_ref_s, 1.0)
+    else:
+        t5 = 0.0
+
     # ── Coste ponderado ──
-    return weights.w1 * t1 + weights.w2 * t2 + weights.w3 * t3 + weights.w4 * t4
+    return (weights.w1 * t1 + weights.w2 * t2 + weights.w3 * t3
+            + weights.w4 * t4 + weights.w5 * t5)
 
 
 def compute_cost_components(
@@ -200,6 +231,8 @@ def build_cost_matrix(
     distances_km: list[list[float]],
     weights: CostWeights,
     charger_power_w: float = 180.0,
+    drone_accumulated_times_s: list[float] | None = None,
+    load_time_ref_s: float = _LOAD_TIME_REF_S,
 ) -> np.ndarray:
     """
     Construye la matriz de costes N_drones × M_pedidos.
@@ -218,6 +251,10 @@ def build_cost_matrix(
         Pesos de la función de costes.
     charger_power_w : float
         Potencia del cargador (W).
+    drone_accumulated_times_s : list[float] or None
+        Tiempo acumulado por cada dron (para el término w5). Si None, se asume 0.
+    load_time_ref_s : float
+        Referencia para normalizar el tiempo acumulado.
 
     Returns
     -------
@@ -227,6 +264,7 @@ def build_cost_matrix(
     n_drones = len(drone_specs)
     m_orders = len(order_weights_kg)
     matrix = np.full((n_drones, m_orders), 1e18, dtype=np.float64)
+    acc = drone_accumulated_times_s if drone_accumulated_times_s is not None else [0.0] * n_drones
 
     for i in range(n_drones):
         for j in range(m_orders):
@@ -237,6 +275,8 @@ def build_cost_matrix(
                 distances_km[i][j],
                 weights,
                 charger_power_w,
+                drone_accumulated_time_s=acc[i],
+                load_time_ref_s=load_time_ref_s,
             )
             matrix[i, j] = c if not math.isinf(c) else 1e18
 

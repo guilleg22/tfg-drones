@@ -105,7 +105,7 @@ class TestCostWeights:
     def test_as_array(self):
         w = CostWeights(1.0, 2.0, 3.0, 4.0)
         arr = w.as_array()
-        assert len(arr) == 4
+        assert len(arr) == 5
         assert arr[0] == 1.0
 
 

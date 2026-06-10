@@ -1,7 +1,7 @@
 """
 viz_v2.py — Figuras profesionales específicas de la solución mejorada.
 
-Reutiliza el estilo de sim2.visualization y añade:
+Reutiliza el estilo de visualization y añade:
   - Convergencia de 3 tuners (MC, GA, Bayes) en el mismo eje de presupuesto.
   - Composición de los 5 pesos (incluye w5 de balanceo de carga).
   - Comparación Base vs Mejorada del makespan (la figura "titular").
@@ -18,7 +18,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from sim2.visualization import _apply_style, _boxplot_compat
+from simulacion.visualization import _apply_style, _boxplot_compat
 
 TERM_LABELS_5 = ["w1\nEnergía", "w2\nBatería", "w3\nCapacidad",
                  "w4\nEspera", "w5\nCarga"]
