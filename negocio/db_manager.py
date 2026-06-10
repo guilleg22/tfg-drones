@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 
 from negocio.geocoder import geocode_address
-from utils.geo_utils import haversine_km
+from servicios.route_matcher import find_best_route
 
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
@@ -109,36 +109,7 @@ class DeliveryDataStore:
         return profiles
 
     def _find_best_route(self, client_lat, client_lon):
-        profiles = self._load_profiles()
-        best = None
-        for profile in profiles:
-            pname = profile.get("name")
-            dests = {d.get("name"): d for d in profile.get("destinations", []) if isinstance(d, dict)}
-            for route in profile.get("routes", []):
-                if not isinstance(route, dict):
-                    continue
-                dname = route.get("destination")
-                dest = dests.get(dname)
-                if dest is None:
-                    continue
-                try:
-                    dlat, dlon = float(dest["lat"]), float(dest["lon"])
-                except (TypeError, ValueError, KeyError):
-                    continue
-                dist = haversine_km(client_lat, client_lon, dlat, dlon)
-                cand = {
-                    "profile_name": str(pname),
-                    "route_name": str(route.get("name")),
-                    "destination_name": str(dname),
-                    "destination_lat": dlat,
-                    "destination_lon": dlon,
-                    "distance_km": dist,
-                }
-                if best is None or cand["distance_km"] < best["distance_km"]:
-                    best = cand
-        if best is None:
-            raise ValueError("No se encontró ruta válida")
-        return best
+        return find_best_route(self._load_profiles(), client_lat, client_lon)
 
     def _build_assignment(self, client_id):
         with self._connect() as conn:
