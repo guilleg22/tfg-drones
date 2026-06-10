@@ -1,0 +1,743 @@
+{
+  "objective": "time",
+  "quick": false,
+  "elapsed_s": 181.6949746608734,
+  "archetypes": [
+    {
+      "key": "urban_small",
+      "name": "Urbano pequeño (base Castelldefels)",
+      "description": "Flota base de 5 drones (2 ligeros, 2 medios, 1 pesado) atendiendo 30 pedidos repartidos sobre los destinos reales de Castelldefels. Es el escenario canónico del proyecto.",
+      "config": {
+        "n_drones": 5,
+        "n_orders": 30,
+        "charger_w": 180.0,
+        "weight_min": 0.3,
+        "weight_max": 4.0,
+        "n_train": 8,
+        "n_test": 30,
+        "mc_trials": 400,
+        "ga_pop": 30,
+        "ga_gen": 25
+      },
+      "baseline": {
+        "time": 18596.85184524479,
+        "energy": 996.160729666832,
+        "delivered": 30.0
+      },
+      "mc": {
+        "weights": [
+          0.2698160708790841,
+          0.15374072680510414,
+          0.21558121861461862,
+          0.3608619837011933
+        ],
+        "best_objective": 0.9982658444772424,
+        "n_evaluations": 400,
+        "time_improvement_pct": 0.17341555227575461,
+        "energy_improvement_pct": 0.2852510661741269,
+        "elapsed_s": 2.1383731365203857
+      },
+      "ga": {
+        "weights": [
+          0.30573204335293885,
+          0.1793699483212609,
+          0.32437207585120276,
+          0.19052593247459745
+        ],
+        "best_objective": 0.9977547581223414,
+        "n_evaluations": 534,
+        "time_improvement_pct": 0.22452418776586214,
+        "energy_improvement_pct": 0.13574468982641036,
+        "elapsed_s": 2.930250406265259
+      },
+      "winner_train": "GA",
+      "test": {
+        "methods": [
+          "Neutros",
+          "Monte Carlo",
+          "Genético"
+        ],
+        "weights": {
+          "Neutros": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Monte Carlo": [
+            0.2698160708790841,
+            0.15374072680510414,
+            0.21558121861461862,
+            0.3608619837011933
+          ],
+          "Genético": [
+            0.30573204335293885,
+            0.1793699483212609,
+            0.32437207585120276,
+            0.19052593247459745
+          ]
+        },
+        "time_mean": {
+          "Neutros": 21531.60342485154,
+          "Monte Carlo": 21427.456859530823,
+          "Genético": 21655.122789666355
+        },
+        "time_std": {
+          "Neutros": 5606.186091929703,
+          "Monte Carlo": 6053.351813997974,
+          "Genético": 5696.188806795854
+        },
+        "energy_mean": {
+          "Neutros": 1091.9989155213846,
+          "Monte Carlo": 1091.9270529188714,
+          "Genético": 1091.9989155213846
+        },
+        "energy_std": {
+          "Neutros": 150.4438373612367,
+          "Monte Carlo": 150.4136176832534,
+          "Genético": 150.4438373612367
+        },
+        "time_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": 0.4836916381271969,
+          "Genético": -0.5736654274072844
+        },
+        "energy_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": 0.006580830941474067,
+          "Genético": 0.0
+        },
+        "p_value_time": {
+          "Neutros": 1.0,
+          "Monte Carlo": 0.7189367340802726,
+          "Genético": 0.05839448238195612
+        }
+      },
+      "greedy_vs_jv": {
+        "energy_saving_pct": 0.00020759380523049088,
+        "time_saving_pct": 2.0531404789248757,
+        "p_value_energy": 0.9986613439492856,
+        "p_value_time": 0.0003239979661343214,
+        "avg_greedy_time": 22109.052700160177,
+        "avg_jv_time": 21655.122789666355
+      },
+      "sensitivity": {
+        "labels": [
+          "w1\nEnergía",
+          "w2\nBatería",
+          "w3\nCapacidad",
+          "w4\nEspera"
+        ],
+        "times": [
+          21234.299166209566,
+          21773.2642223824,
+          21619.71898607403,
+          21773.2642223824
+        ],
+        "energies": [
+          1094.7239259887567,
+          1097.6412925176369,
+          1092.428103742284,
+          1097.6412925176369
+        ]
+      },
+      "figures": {
+        "convergence": "results\\parameter_study\\urban_small\\convergence_mc_vs_ga.png",
+        "weights": "results\\parameter_study\\urban_small\\weights_comparison.png",
+        "test_comparison": "results\\parameter_study\\urban_small\\test_comparison.png",
+        "sensitivity": "results\\parameter_study\\urban_small\\sensitivity.png",
+        "greedy_vs_jv_bars": "results\\parameter_study\\urban_small\\greedy_vs_jv_bars.png",
+        "greedy_vs_jv_boxplots": "results\\parameter_study\\urban_small\\greedy_vs_jv_boxplots.png",
+        "cost_heatmap": "results\\parameter_study\\urban_small\\cost_heatmap.png"
+      }
+    },
+    {
+      "key": "ecommerce_light",
+      "name": "Perfil e-commerce (paquetería ligera)",
+      "description": "Mismo tamaño de flota pero pedidos ligeros (0.1–1.5 kg), típicos de comercio electrónico. Aquí muchos drones ligeros son viables, lo que da más libertad al optimizador.",
+      "config": {
+        "n_drones": 5,
+        "n_orders": 40,
+        "charger_w": 180.0,
+        "weight_min": 0.1,
+        "weight_max": 1.5,
+        "n_train": 8,
+        "n_test": 30,
+        "mc_trials": 400,
+        "ga_pop": 30,
+        "ga_gen": 25
+      },
+      "baseline": {
+        "time": 9915.024251039289,
+        "energy": 1058.963578373016,
+        "delivered": 40.0
+      },
+      "mc": {
+        "weights": [
+          0.4119911429605033,
+          0.1496364463834283,
+          0.13570774729148793,
+          0.3026646633645805
+        ],
+        "best_objective": 0.9519789559682033,
+        "n_evaluations": 400,
+        "time_improvement_pct": 4.80210440317967,
+        "energy_improvement_pct": 0.4701622359332776,
+        "elapsed_s": 3.684556245803833
+      },
+      "ga": {
+        "weights": [
+          0.23173121514275322,
+          0.3306414876794359,
+          0.05295505874413121,
+          0.38467223843367965
+        ],
+        "best_objective": 0.9494508159254698,
+        "n_evaluations": 412,
+        "time_improvement_pct": 5.0549184074530285,
+        "energy_improvement_pct": 0.21083673040811152,
+        "elapsed_s": 3.8069944381713867
+      },
+      "winner_train": "GA",
+      "test": {
+        "methods": [
+          "Neutros",
+          "Monte Carlo",
+          "Genético"
+        ],
+        "weights": {
+          "Neutros": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Monte Carlo": [
+            0.4119911429605033,
+            0.1496364463834283,
+            0.13570774729148793,
+            0.3026646633645805
+          ],
+          "Genético": [
+            0.23173121514275322,
+            0.3306414876794359,
+            0.05295505874413121,
+            0.38467223843367965
+          ]
+        },
+        "time_mean": {
+          "Neutros": 9938.34339126048,
+          "Monte Carlo": 9821.900241844955,
+          "Genético": 9728.04753881931
+        },
+        "time_std": {
+          "Neutros": 1113.0809381966294,
+          "Monte Carlo": 786.8387828310234,
+          "Genético": 938.193569162362
+        },
+        "energy_mean": {
+          "Neutros": 1022.7816086563051,
+          "Monte Carlo": 1025.6594750275572,
+          "Genético": 1027.9006252391976
+        },
+        "energy_std": {
+          "Neutros": 122.45735562057975,
+          "Monte Carlo": 115.41275138445833,
+          "Genético": 116.79396504022898
+        },
+        "time_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": 1.17165552478215,
+          "Genético": 2.1160050942302755
+        },
+        "energy_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": -0.28137642942493524,
+          "Genético": -0.5004994751144968
+        },
+        "p_value_time": {
+          "Neutros": 1.0,
+          "Monte Carlo": 0.5355292396903987,
+          "Genético": 0.23123437497734703
+        }
+      },
+      "greedy_vs_jv": {
+        "energy_saving_pct": -2.7174522619660086,
+        "time_saving_pct": 4.430146101721986,
+        "p_value_energy": 0.0003319669903508316,
+        "p_value_time": 0.01125071592375898,
+        "avg_greedy_time": 10178.991744795992,
+        "avg_jv_time": 9728.04753881931
+      },
+      "sensitivity": {
+        "labels": [
+          "w1\nEnergía",
+          "w2\nBatería",
+          "w3\nCapacidad",
+          "w4\nEspera"
+        ],
+        "times": [
+          10205.229578458064,
+          10426.479311067458,
+          10818.171480007179,
+          10406.160770944003
+        ],
+        "energies": [
+          1042.5093481183862,
+          1039.0113470260142,
+          1033.6194046362436,
+          1036.741309359568
+        ]
+      },
+      "figures": {
+        "convergence": "results\\parameter_study\\ecommerce_light\\convergence_mc_vs_ga.png",
+        "weights": "results\\parameter_study\\ecommerce_light\\weights_comparison.png",
+        "test_comparison": "results\\parameter_study\\ecommerce_light\\test_comparison.png",
+        "sensitivity": "results\\parameter_study\\ecommerce_light\\sensitivity.png",
+        "greedy_vs_jv_bars": "results\\parameter_study\\ecommerce_light\\greedy_vs_jv_bars.png",
+        "greedy_vs_jv_boxplots": "results\\parameter_study\\ecommerce_light\\greedy_vs_jv_boxplots.png"
+      }
+    },
+    {
+      "key": "industrial_heavy",
+      "name": "Perfil industrial (carga pesada)",
+      "description": "Pedidos pesados (1.5–4.0 kg) que solo pueden servir los drones medios y pesados. El problema está muy restringido por la carga útil, lo que reduce el margen de la optimización.",
+      "config": {
+        "n_drones": 5,
+        "n_orders": 40,
+        "charger_w": 180.0,
+        "weight_min": 1.5,
+        "weight_max": 4.0,
+        "n_train": 8,
+        "n_test": 30,
+        "mc_trials": 400,
+        "ga_pop": 30,
+        "ga_gen": 25
+      },
+      "baseline": {
+        "time": 42387.64166703667,
+        "energy": 1585.1282149470899,
+        "delivered": 40.0
+      },
+      "mc": {
+        "weights": [
+          0.14002066926179677,
+          0.33095101100942703,
+          0.3265855418676086,
+          0.20244277786116766
+        ],
+        "best_objective": 0.9403770039394524,
+        "n_evaluations": 400,
+        "time_improvement_pct": 5.96229960605475,
+        "energy_improvement_pct": 0.0,
+        "elapsed_s": 5.558273792266846
+      },
+      "ga": {
+        "weights": [
+          0.14521980896261646,
+          0.41148572593216065,
+          0.3465805345422204,
+          0.09671393056300252
+        ],
+        "best_objective": 0.9403770039394524,
+        "n_evaluations": 506,
+        "time_improvement_pct": 5.96229960605475,
+        "energy_improvement_pct": 0.0,
+        "elapsed_s": 7.0393900871276855
+      },
+      "winner_train": "GA",
+      "test": {
+        "methods": [
+          "Neutros",
+          "Monte Carlo",
+          "Genético"
+        ],
+        "weights": {
+          "Neutros": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Monte Carlo": [
+            0.14002066926179677,
+            0.33095101100942703,
+            0.3265855418676086,
+            0.20244277786116766
+          ],
+          "Genético": [
+            0.14521980896261646,
+            0.41148572593216065,
+            0.3465805345422204,
+            0.09671393056300252
+          ]
+        },
+        "time_mean": {
+          "Neutros": 48026.975318744684,
+          "Monte Carlo": 47708.690928621225,
+          "Genético": 47708.690928621225
+        },
+        "time_std": {
+          "Neutros": 6953.196146694643,
+          "Monte Carlo": 6988.845448510987,
+          "Genético": 6988.845448510987
+        },
+        "energy_mean": {
+          "Neutros": 1766.5754600176365,
+          "Monte Carlo": 1766.5754600176365,
+          "Genético": 1766.5754600176365
+        },
+        "energy_std": {
+          "Neutros": 188.7525312280363,
+          "Monte Carlo": 188.7525312280363,
+          "Genético": 188.7525312280363
+        },
+        "time_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": 0.662720040167165,
+          "Genético": 0.662720040167165
+        },
+        "energy_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": 0.0,
+          "Genético": 0.0
+        },
+        "p_value_time": {
+          "Neutros": 1.0,
+          "Monte Carlo": 0.3004708207384532,
+          "Genético": 0.3004708207384532
+        }
+      },
+      "greedy_vs_jv": {
+        "energy_saving_pct": 0.0,
+        "time_saving_pct": -0.1803291917676058,
+        "p_value_energy": NaN,
+        "p_value_time": 0.825009658805366,
+        "avg_greedy_time": 47622.81309467061,
+        "avg_jv_time": 47708.690928621225
+      },
+      "sensitivity": {
+        "labels": [
+          "w1\nEnergía",
+          "w2\nBatería",
+          "w3\nCapacidad",
+          "w4\nEspera"
+        ],
+        "times": [
+          47114.20863294221,
+          47755.153118744674,
+          47114.7044952879,
+          47755.153118744674
+        ],
+        "energies": [
+          1766.5754600176365,
+          1766.5754600176365,
+          1766.5754600176365,
+          1766.5754600176365
+        ]
+      },
+      "figures": {
+        "convergence": "results\\parameter_study\\industrial_heavy\\convergence_mc_vs_ga.png",
+        "weights": "results\\parameter_study\\industrial_heavy\\weights_comparison.png",
+        "test_comparison": "results\\parameter_study\\industrial_heavy\\test_comparison.png",
+        "sensitivity": "results\\parameter_study\\industrial_heavy\\sensitivity.png",
+        "greedy_vs_jv_bars": "results\\parameter_study\\industrial_heavy\\greedy_vs_jv_bars.png",
+        "greedy_vs_jv_boxplots": "results\\parameter_study\\industrial_heavy\\greedy_vs_jv_boxplots.png"
+      }
+    },
+    {
+      "key": "operational_day",
+      "name": "Día operativo (10 drones, 150 pedidos)",
+      "description": "Jornada completa con 10 drones y 150 pedidos (≈15 por dron). Aparecen múltiples rondas de recarga, donde el reparto de carga entre drones (y por tanto los pesos) influye en el makespan.",
+      "config": {
+        "n_drones": 10,
+        "n_orders": 150,
+        "charger_w": 300.0,
+        "weight_min": 0.3,
+        "weight_max": 4.0,
+        "n_train": 5,
+        "n_test": 12,
+        "mc_trials": 150,
+        "ga_pop": 20,
+        "ga_gen": 15
+      },
+      "baseline": {
+        "time": 45367.733927550944,
+        "energy": 5452.179631144179,
+        "delivered": 150.0
+      },
+      "mc": {
+        "weights": [
+          0.025713753333599074,
+          0.5958022014775503,
+          0.0007444139254417648,
+          0.37773963126340887
+        ],
+        "best_objective": 0.9721530540427205,
+        "n_evaluations": 150,
+        "time_improvement_pct": 2.78469459572795,
+        "energy_improvement_pct": -0.010471146457182874,
+        "elapsed_s": 9.656285524368286
+      },
+      "ga": {
+        "weights": [
+          0.3937056550374051,
+          0.36202937706447713,
+          0.012984640032590788,
+          0.23128032786552694
+        ],
+        "best_objective": 0.968586654915864,
+        "n_evaluations": 132,
+        "time_improvement_pct": 3.14133450841359,
+        "energy_improvement_pct": 0.0,
+        "elapsed_s": 8.01943063735962
+      },
+      "winner_train": "GA",
+      "test": {
+        "methods": [
+          "Neutros",
+          "Monte Carlo",
+          "Genético"
+        ],
+        "weights": {
+          "Neutros": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Monte Carlo": [
+            0.025713753333599074,
+            0.5958022014775503,
+            0.0007444139254417648,
+            0.37773963126340887
+          ],
+          "Genético": [
+            0.3937056550374051,
+            0.36202937706447713,
+            0.012984640032590788,
+            0.23128032786552694
+          ]
+        },
+        "time_mean": {
+          "Neutros": 44453.38177890404,
+          "Monte Carlo": 43772.286940120575,
+          "Genético": 43879.707950546814
+        },
+        "time_std": {
+          "Neutros": 5007.208897599647,
+          "Monte Carlo": 4937.232389376175,
+          "Genético": 4990.55289954743
+        },
+        "energy_mean": {
+          "Neutros": 5269.646197376543,
+          "Monte Carlo": 5271.115656751543,
+          "Genético": 5269.898603279321
+        },
+        "energy_std": {
+          "Neutros": 293.219885345659,
+          "Monte Carlo": 295.57726225100873,
+          "Genético": 293.1416274159851
+        },
+        "time_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": 1.532155286117485,
+          "Genético": 1.2905066057976977
+        },
+        "energy_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": -0.027885351690813753,
+          "Genético": -0.004789807386004826
+        },
+        "p_value_time": {
+          "Neutros": 1.0,
+          "Monte Carlo": 0.19794611845303303,
+          "Genético": 0.26157302247783615
+        }
+      },
+      "greedy_vs_jv": {
+        "energy_saving_pct": 0.514803356328694,
+        "time_saving_pct": -0.5221836392415514,
+        "p_value_energy": 0.00018914801809304942,
+        "p_value_time": 0.6787817576172491,
+        "avg_greedy_time": 43651.76557248721,
+        "avg_jv_time": 43879.707950546814
+      },
+      "sensitivity": {
+        "labels": [
+          "w1\nEnergía",
+          "w2\nBatería",
+          "w3\nCapacidad",
+          "w4\nEspera"
+        ],
+        "times": [
+          43912.73481624579,
+          43641.71766903197,
+          43678.09840827052,
+          43617.56524381205
+        ],
+        "energies": [
+          5274.951162979497,
+          5274.456074052027,
+          5269.646197376543,
+          5274.456074052027
+        ]
+      },
+      "figures": {
+        "convergence": "results\\parameter_study\\operational_day\\convergence_mc_vs_ga.png",
+        "weights": "results\\parameter_study\\operational_day\\weights_comparison.png",
+        "test_comparison": "results\\parameter_study\\operational_day\\test_comparison.png",
+        "sensitivity": "results\\parameter_study\\operational_day\\sensitivity.png",
+        "greedy_vs_jv_bars": "results\\parameter_study\\operational_day\\greedy_vs_jv_bars.png",
+        "greedy_vs_jv_boxplots": "results\\parameter_study\\operational_day\\greedy_vs_jv_boxplots.png"
+      }
+    },
+    {
+      "key": "massive_ops",
+      "name": "Operación masiva (25 drones, 600 pedidos)",
+      "description": "Escenario de gran escala con 25 drones y 600 pedidos. Pone a prueba la robustez del método de optimización cuando el coste de cada evaluación es alto.",
+      "config": {
+        "n_drones": 25,
+        "n_orders": 600,
+        "charger_w": 300.0,
+        "weight_min": 0.3,
+        "weight_max": 4.0,
+        "n_train": 3,
+        "n_test": 8,
+        "mc_trials": 150,
+        "ga_pop": 20,
+        "ga_gen": 15
+      },
+      "baseline": {
+        "time": 71881.78849810768,
+        "energy": 21671.866980720897,
+        "delivered": 600.0
+      },
+      "mc": {
+        "weights": [
+          0.2542867847359191,
+          0.2563460551732334,
+          0.24502054632610182,
+          0.2443466137647457
+        ],
+        "best_objective": 0.9974814866265441,
+        "n_evaluations": 150,
+        "time_improvement_pct": 0.25185133734558224,
+        "energy_improvement_pct": 0.0,
+        "elapsed_s": 75.00774717330933
+      },
+      "ga": {
+        "weights": [
+          0.3078520959580393,
+          0.2828669356389541,
+          0.3729396948672964,
+          0.03634127353571014
+        ],
+        "best_objective": 0.9963069174952534,
+        "n_evaluations": 87,
+        "time_improvement_pct": 0.3693082504746592,
+        "energy_improvement_pct": 0.0,
+        "elapsed_s": 44.079551458358765
+      },
+      "winner_train": "GA",
+      "test": {
+        "methods": [
+          "Neutros",
+          "Monte Carlo",
+          "Genético"
+        ],
+        "weights": {
+          "Neutros": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Monte Carlo": [
+            0.2542867847359191,
+            0.2563460551732334,
+            0.24502054632610182,
+            0.2443466137647457
+          ],
+          "Genético": [
+            0.3078520959580393,
+            0.2828669356389541,
+            0.3729396948672964,
+            0.03634127353571014
+          ]
+        },
+        "time_mean": {
+          "Neutros": 74801.45323205675,
+          "Monte Carlo": 75160.30812549776,
+          "Genético": 73935.12549537924
+        },
+        "time_std": {
+          "Neutros": 3380.417361900712,
+          "Monte Carlo": 3137.7069088030134,
+          "Genético": 2324.390300781063
+        },
+        "energy_mean": {
+          "Neutros": 21777.96950739914,
+          "Monte Carlo": 21777.96950739914,
+          "Genético": 21777.96950739914
+        },
+        "energy_std": {
+          "Neutros": 668.7576803526911,
+          "Monte Carlo": 668.7576803526911,
+          "Genético": 668.7576803526911
+        },
+        "time_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": -0.47974321077390025,
+          "Genético": 1.1581696601400293
+        },
+        "energy_impr_pct": {
+          "Neutros": 0.0,
+          "Monte Carlo": 0.0,
+          "Genético": 0.0
+        },
+        "p_value_time": {
+          "Neutros": 1.0,
+          "Monte Carlo": 0.4032445942139284,
+          "Genético": 0.25532156641390963
+        }
+      },
+      "greedy_vs_jv": {
+        "energy_saving_pct": 0.0,
+        "time_saving_pct": -0.6418546038461063,
+        "p_value_energy": NaN,
+        "p_value_time": 0.6266203537338748,
+        "avg_greedy_time": 73463.5960221601,
+        "avg_jv_time": 73935.12549537924
+      },
+      "sensitivity": {
+        "labels": [
+          "w1\nEnergía",
+          "w2\nBatería",
+          "w3\nCapacidad",
+          "w4\nEspera"
+        ],
+        "times": [
+          74229.80513981663,
+          73950.91183294429,
+          73350.97771226487,
+          74276.22470413001
+        ],
+        "energies": [
+          21784.23246084656,
+          21785.803189190643,
+          21778.87822787285,
+          21785.511179245204
+        ]
+      },
+      "figures": {
+        "convergence": "results\\parameter_study\\massive_ops\\convergence_mc_vs_ga.png",
+        "weights": "results\\parameter_study\\massive_ops\\weights_comparison.png",
+        "test_comparison": "results\\parameter_study\\massive_ops\\test_comparison.png",
+        "sensitivity": "results\\parameter_study\\massive_ops\\sensitivity.png",
+        "greedy_vs_jv_bars": "results\\parameter_study\\massive_ops\\greedy_vs_jv_bars.png",
+        "greedy_vs_jv_boxplots": "results\\parameter_study\\massive_ops\\greedy_vs_jv_boxplots.png"
+      }
+    }
+  ]
+}

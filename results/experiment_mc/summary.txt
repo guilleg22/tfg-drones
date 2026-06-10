@@ -1,0 +1,24 @@
+=== Pesos Monte Carlo ===
+Pesos: w1=0.2882, w2=0.2580, w3=0.2780, w4=0.1758
+
+============================================================
+RESULTADOS: Greedy vs. Jonker-Volgenant
+============================================================
+Escenarios evaluados: 30
+
+── Energía Total (Wh) ──
+  Greedy:          1092.00 Wh
+  JV (Costes):     1092.00 Wh
+  Ahorro:       +0.00%
+  p-value:      0.9987 (no significativo)
+
+── Tiempo Total (s) ──
+  Greedy:         22109.05 s
+  JV (Costes):    21487.89 s
+  Ahorro:       +2.81%
+  p-value:      0.0000 (SIGNIFICATIVO)
+
+── Pedidos Entregados ──
+  Greedy:       30.0
+  JV (Costes):  30.0
+============================================================

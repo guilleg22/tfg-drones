@@ -1,0 +1,24 @@
+=== Pesos MC ===
+Pesos: w1=0.0374, w2=0.3556, w3=0.5562, w4=0.0507
+
+============================================================
+RESULTADOS: Greedy vs. Jonker-Volgenant
+============================================================
+Escenarios evaluados: 10
+
+── Energía Total (Wh) ──
+  Greedy:          5351.67 Wh
+  JV (Costes):     5347.89 Wh
+  Ahorro:       +0.07%
+  p-value:      0.2180 (no significativo)
+
+── Tiempo Total (s) ──
+  Greedy:         45329.75 s
+  JV (Costes):    45016.33 s
+  Ahorro:       +0.69%
+  p-value:      0.1240 (no significativo)
+
+── Pedidos Entregados ──
+  Greedy:       150.0
+  JV (Costes):  150.0
+============================================================
