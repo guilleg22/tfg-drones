@@ -1,23 +1,20 @@
 """
-objective.py — Definición única y compartida de la función objetivo.
+objective.py — Función objetivo compartida (versión mejorada).
 
-Tanto el optimizador Monte Carlo como el Algoritmo Genético deben optimizar
-EXACTAMENTE la misma función para que su comparación sea justa. Este módulo
-centraliza esa definición y resuelve dos problemas de la versión anterior:
+Además de los objetivos de la solución base (energy, time, combined,
+normalizados contra los pesos neutros), añade objetivos **sensibles al riesgo**:
 
-  1. Normalización inconsistente del objetivo "combined": antes cada optimizador
-     usaba su *primer trial aleatorio* como referencia, de modo que sus valores
-     no eran comparables entre sí. Ahora ambos normalizan contra un **baseline
-     fijo** (los pesos neutros w=[1,1,1,1]), calculado una sola vez.
+  - "time_p90"  → percentil 90 del makespan entre escenarios.
+  - "time_cvar" → CVaR_90 (media del 10 % peor de los escenarios).
 
-  2. Falta de un punto de comparación interpretable. Al normalizar contra el
-     baseline, un objetivo < 1.0 significa "mejor que los pesos neutros" y
-     1.0 significa "igual que neutros". Esto permite reportar la mejora (%)
-     directamente.
+Motivación: en este problema las ganancias de la optimización vienen de
+escenarios "patológicos" raros (los que cruzan una ronda extra de recarga).
+Optimizar la MEDIA apenas los toca; optimizar el percentil 90 / la cola ataca
+directamente esos casos, que son los que importan operativamente.
 
-El asignador subyacente sigue siendo Jonker-Volgenant vía
-``scipy.optimize.linear_sum_assignment`` (no se toca): este módulo solo decide
-QUÉ valor escalar se minimiza al buscar los pesos.
+Todos los objetivos comparten el mismo evaluador y la misma normalización
+(baseline = pesos neutros), de modo que Monte Carlo, Genético y Bayesiano
+optimizan exactamente la misma función y son comparables.
 """
 
 from __future__ import annotations
@@ -30,20 +27,33 @@ from simulacion.cost_function import CostWeights
 from simulacion.scenario_generator import Scenario
 from simulacion.simulator import Simulator
 
-# Objetivos soportados
-VALID_OBJECTIVES = ("energy", "time", "combined")
+VALID_OBJECTIVES = ("energy", "time", "combined", "time_p90", "time_cvar")
 
-# Pesos neutros usados como baseline de referencia
-NEUTRAL_WEIGHTS = CostWeights(1.0, 1.0, 1.0, 1.0)
+# Pesos neutros de referencia (5 términos; w5=1 incluye balanceo de carga).
+NEUTRAL_WEIGHTS = CostWeights(1.0, 1.0, 1.0, 1.0, 1.0)
+
+# Nivel para P90 / CVaR
+_RISK_LEVEL = 90.0
+
+
+def _cvar(values: np.ndarray, level: float = _RISK_LEVEL) -> float:
+    """CVaR: media de los valores por encima del percentil `level`."""
+    if len(values) == 0:
+        return 0.0
+    thr = np.percentile(values, level)
+    tail = values[values >= thr]
+    return float(tail.mean()) if len(tail) else float(values.max())
 
 
 @dataclass(frozen=True)
 class Baseline:
-    """Métricas de referencia obtenidas con los pesos neutros."""
+    """Métricas de referencia con los pesos neutros."""
 
-    energy: float   # energía total promedio con w=[1,1,1,1] (Wh)
-    time: float     # makespan promedio con w=[1,1,1,1] (s)
-    delivered: float  # pedidos entregados promedio
+    energy: float        # energía total media (Wh)
+    time: float          # makespan medio (s)
+    time_p90: float      # percentil 90 del makespan (s)
+    time_cvar: float     # CVaR_90 del makespan (s)
+    delivered: float
 
     @property
     def energy_ref(self) -> float:
@@ -53,35 +63,37 @@ class Baseline:
     def time_ref(self) -> float:
         return max(self.time, 1e-9)
 
+    @property
+    def time_p90_ref(self) -> float:
+        return max(self.time_p90, 1e-9)
 
-def compute_baseline(
-    sim: Simulator,
-    scenarios: list[Scenario],
-) -> Baseline:
-    """
-    Evalúa los pesos neutros sobre los escenarios y devuelve las métricas
-    de referencia. Se llama una sola vez al inicio de cada optimización.
-    """
+    @property
+    def time_cvar_ref(self) -> float:
+        return max(self.time_cvar, 1e-9)
+
+
+def compute_baseline(sim: Simulator, scenarios: list[Scenario]) -> Baseline:
+    """Evalúa los pesos neutros y devuelve las métricas de referencia."""
     results = sim.run_batch(scenarios, "cost_matrix", NEUTRAL_WEIGHTS)
-    energy = float(np.mean([r.total_energy_wh for r in results]))
-    time = float(np.mean([r.total_time_s for r in results]))
+    energies = np.array([r.total_energy_wh for r in results])
+    times = np.array([r.total_time_s for r in results])
     delivered = float(np.mean([r.n_delivered for r in results]))
-    return Baseline(energy=energy, time=time, delivered=delivered)
+    return Baseline(
+        energy=float(energies.mean()),
+        time=float(times.mean()),
+        time_p90=float(np.percentile(times, _RISK_LEVEL)),
+        time_cvar=_cvar(times),
+        delivered=delivered,
+    )
 
 
 class ObjectiveEvaluator:
     """
-    Evalúa un vector de pesos y devuelve (objetivo, energía, tiempo).
+    Evalúa un vector de pesos y devuelve (objetivo_normalizado, energía, tiempo).
 
-    El objetivo está siempre normalizado contra el baseline neutro:
-
-      - "energy"   → energía_media / baseline.energy
-      - "time"     → tiempo_media  / baseline.time
-      - "combined" → 0.5·(energía/base_E) + 0.5·(tiempo/base_T)
-
-    Lleva la cuenta del número de evaluaciones (cada evaluación = una
-    simulación JV sobre TODO el lote de escenarios), lo que permite comparar
-    Monte Carlo y GA bajo un mismo presupuesto de cómputo.
+    El objetivo se normaliza contra el baseline neutro (valor < 1.0 = mejor que
+    neutros). Cuenta el número de evaluaciones para comparar tuners bajo el
+    mismo presupuesto.
     """
 
     def __init__(
@@ -94,10 +106,7 @@ class ObjectiveEvaluator:
         w_time: float = 0.5,
     ):
         if objective not in VALID_OBJECTIVES:
-            raise ValueError(
-                f"Objetivo desconocido: {objective!r}. "
-                f"Válidos: {VALID_OBJECTIVES}"
-            )
+            raise ValueError(f"Objetivo desconocido: {objective!r}. Válidos: {VALID_OBJECTIVES}")
         self.sim = sim
         self.scenarios = scenarios
         self.objective = objective
@@ -105,48 +114,43 @@ class ObjectiveEvaluator:
         self.w_energy = w_energy
         self.w_time = w_time
         self.n_evals = 0
-        # Caché: pesos deterministas → resultado. Evita re-evaluar la élite
-        # del GA y acelera ambos métodos sin alterar el resultado.
         self._cache: dict[tuple, tuple[float, float, float]] = {}
 
-    def _scalarize(self, energy: float, time: float) -> float:
-        be = self.baseline.energy_ref
-        bt = self.baseline.time_ref
+    def _scalarize(self, energies: np.ndarray, times: np.ndarray) -> float:
+        b = self.baseline
         if self.objective == "energy":
-            return energy / be
+            return float(energies.mean()) / b.energy_ref
         if self.objective == "time":
-            return time / bt
+            return float(times.mean()) / b.time_ref
+        if self.objective == "time_p90":
+            return float(np.percentile(times, _RISK_LEVEL)) / b.time_p90_ref
+        if self.objective == "time_cvar":
+            return _cvar(times) / b.time_cvar_ref
         # combined
-        return self.w_energy * (energy / be) + self.w_time * (time / bt)
+        return (self.w_energy * float(energies.mean()) / b.energy_ref
+                + self.w_time * float(times.mean()) / b.time_ref)
 
     def evaluate(self, weights: CostWeights) -> tuple[float, float, float]:
-        """
-        Devuelve (objetivo_normalizado, energía_media_Wh, tiempo_media_s).
-        """
-        key = (round(weights.w1, 6), round(weights.w2, 6),
-               round(weights.w3, 6), round(weights.w4, 6))
+        """Devuelve (objetivo_normalizado, energía_media_Wh, tiempo_medio_s)."""
+        key = (round(weights.w1, 6), round(weights.w2, 6), round(weights.w3, 6),
+               round(weights.w4, 6), round(weights.w5, 6))
         cached = self._cache.get(key)
         if cached is not None:
             return cached
 
         self.n_evals += 1
         results = self.sim.run_batch(self.scenarios, "cost_matrix", weights)
-        energy = float(np.mean([r.total_energy_wh for r in results]))
-        time = float(np.mean([r.total_time_s for r in results]))
-        obj = self._scalarize(energy, time)
+        energies = np.array([r.total_energy_wh for r in results])
+        times = np.array([r.total_time_s for r in results])
+        obj = self._scalarize(energies, times)
 
-        out = (obj, energy, time)
+        out = (obj, float(energies.mean()), float(times.mean()))
         self._cache[key] = out
         return out
 
 
 def improvement_pct(baseline_value: float, optimized_value: float) -> float:
-    """
-    Mejora porcentual (positivo = el optimizado es mejor = menor).
-
-    Útil para reportar cuánto reduce el optimizador la energía o el tiempo
-    respecto a los pesos neutros.
-    """
+    """Mejora porcentual (positivo = el optimizado es menor)."""
     if baseline_value <= 0:
         return 0.0
     return (baseline_value - optimized_value) / baseline_value * 100.0

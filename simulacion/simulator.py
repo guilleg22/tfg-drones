@@ -114,8 +114,24 @@ class Simulator:
       4. Si hay pedidos restantes, recargar drones y volver a ronda 1
     """
 
-    def __init__(self, charger_power_w: float = 180.0):
+    def __init__(self, charger_power_w: float = 180.0,
+                 partial_recharge: bool = True,
+                 recharge_safety: float = 0.3):
+        """
+        Parameters
+        ----------
+        charger_power_w : float
+            Potencia del cargador (W).
+        partial_recharge : bool
+            Si True (mejora), recarga solo lo necesario para la cuota de viajes
+            pendientes de cada dron (reduce el makespan, sobre todo en rondas
+            finales). Si False, recarga al 100% como la solución base.
+        recharge_safety : float
+            Margen de seguridad sobre la energía estimada al recargar parcial.
+        """
         self.charger_power_w = charger_power_w
+        self.partial_recharge = partial_recharge
+        self.recharge_safety = recharge_safety
 
     def run(
         self,
@@ -171,9 +187,18 @@ class Simulator:
                 if not _can_any_drone_serve(drones, pending_orders):
                     break  # Ni con recarga → fin
 
-            # Convertir a formato de los asignadores
+            # Convertir a formato de los asignadores, pasando el tiempo acumulado
+            # (vuelo + recarga) de cada dron para el término w5 de balanceo.
             assigner_drones = [
-                DroneState(spec=d.spec, battery_wh=d.battery_wh) for d in drones
+                DroneState(
+                    spec=d.spec,
+                    battery_wh=d.battery_wh,
+                    accumulated_time_s=(
+                        drone_metrics[d.spec.drone_id].total_flight_time_s
+                        + drone_metrics[d.spec.drone_id].total_charge_time_s
+                    ),
+                )
+                for d in drones
             ]
             assigner_orders = [
                 Order(
@@ -264,30 +289,73 @@ class Simulator:
         drone_metrics: dict[str, DroneMetrics],
     ) -> float:
         """
-        Recarga drones que necesitan más batería para poder servir pedidos.
+        Recarga los drones para poder seguir sirviendo pedidos pendientes.
 
-        Carga cada dron al 100% si necesita recarga, y devuelve el tiempo
-        máximo de recarga (todos cargan en paralelo).
+        Dos políticas según ``self.partial_recharge``:
+          - False (base): recarga al 100% cualquier dron con déficit > 10%.
+          - True (mejora): recarga solo lo necesario para la cuota de viajes
+            pendientes que le corresponde a cada dron (energía media por viaje
+            × cuota + margen), acotado al 100%. Además, NO recarga drones que no
+            pueden servir ningún pedido pendiente por carga útil (evita tiempo
+            de recarga inútil). En las rondas finales (pocos pedidos) esto
+            recorta drásticamente el makespan.
 
-        Returns
-        -------
-        float
-            Tiempo máximo de recarga (s). 0 si nadie necesita recarga.
+        Devuelve el tiempo máximo de recarga (los drones cargan en paralelo).
         """
+        if not self.partial_recharge:
+            return self._recharge_full(drones, drone_metrics)
+
         max_charge_time = 0.0
         any_recharged = False
 
+        n_pending = len(pending_orders)
+        n_drones = max(1, len(drones))
+        # Cuota de viajes por dron (techo de la división entera).
+        trips_quota = max(1, -(-n_pending // n_drones))
+
+        for d in drones:
+            cap = d.spec.battery_capacity_wh
+            # Pedidos que este dron puede servir por carga útil.
+            feasible = [o for o in pending_orders if o.weight_kg <= d.spec.max_payload_kg]
+            if not feasible:
+                continue  # recargar no le permite servir nada pendiente
+
+            trip_energies = [
+                estimate_trip_energy_wh(d.spec, o.distance_km, o.weight_kg)
+                for o in feasible
+            ]
+            e_max = max(trip_energies)            # el viaje factible más caro
+            e_avg = sum(trip_energies) / len(trip_energies)
+
+            # Energía objetivo: cuota de viajes a coste medio, con margen, pero
+            # como mínimo poder afrontar el viaje más caro. Acotada a la batería.
+            needed_usable = max(e_max, e_avg * trips_quota)
+            target_battery = min(cap, needed_usable / (1.0 - self.recharge_safety))
+
+            if target_battery - d.battery_wh > cap * 0.01:
+                deficit = target_battery - d.battery_wh
+                charge_time = estimate_charge_time_s(deficit, self.charger_power_w)
+                d.battery_wh = target_battery
+                max_charge_time = max(max_charge_time, charge_time)
+                drone_metrics[d.spec.drone_id].total_charge_time_s += charge_time
+                drone_metrics[d.spec.drone_id].final_battery_wh = d.battery_wh
+                any_recharged = True
+
+        return max_charge_time if any_recharged else 0.0
+
+    def _recharge_full(self, drones, drone_metrics) -> float:
+        """Política base: recarga al 100% (déficit > 10%)."""
+        max_charge_time = 0.0
+        any_recharged = False
         for d in drones:
             energy_deficit = d.spec.battery_capacity_wh - d.battery_wh
             if energy_deficit > d.spec.battery_capacity_wh * 0.1:
-                # Recargar al 100%
                 charge_time = estimate_charge_time_s(energy_deficit, self.charger_power_w)
                 d.battery_wh = d.spec.battery_capacity_wh
                 max_charge_time = max(max_charge_time, charge_time)
                 drone_metrics[d.spec.drone_id].total_charge_time_s += charge_time
                 drone_metrics[d.spec.drone_id].final_battery_wh = d.battery_wh
                 any_recharged = True
-
         return max_charge_time if any_recharged else 0.0
 
     def run_comparison(

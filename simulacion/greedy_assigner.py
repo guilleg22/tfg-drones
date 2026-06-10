@@ -65,6 +65,7 @@ class DroneState:
 
     spec: DroneSpec
     battery_wh: float
+    accumulated_time_s: float = 0.0  # tiempo de trabajo acumulado (para w5) — NUEVO
 
     @property
     def battery_pct(self) -> float:

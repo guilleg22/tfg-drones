@@ -25,8 +25,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sim2.energy_model import estimate_trip_energy_wh, estimate_duration_s
-from sim2.scenario_generator import Scenario
+from simulacion.energy_model import estimate_trip_energy_wh, estimate_duration_s
+from simulacion.scenario_generator import Scenario
 
 
 @dataclass

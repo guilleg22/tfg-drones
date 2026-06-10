@@ -137,7 +137,7 @@ def optimize_genetic(
     # ── Inicializar población ──
     population: list[list[float]] = []
     for _ in range(pop_size):
-        raw = [rng.uniform(0.0, 10.0) for _ in range(4)]
+        raw = [rng.uniform(0.0, 10.0) for _ in range(5)]  # 5 pesos: w1..w5
         population.append(_normalize(raw))
 
     def evaluate(individual: list[float]) -> float:

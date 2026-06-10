@@ -10,7 +10,7 @@ número de evaluaciones para espacios continuos de baja dimensión como este
 (5 pesos), y es el estado del arte en configuración automática de algoritmos
 (misma familia que SMAC).
 
-Optimiza exactamente la misma función objetivo normalizada (sim2.objective),
+Optimiza exactamente la misma función objetivo normalizada (objective),
 por lo que es directamente comparable con MC y GA.
 """
 
@@ -21,10 +21,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from sim2.cost_function import CostWeights
-from sim2.objective import Baseline, ObjectiveEvaluator, improvement_pct
-from sim2.scenario_generator import Scenario
-from sim2.simulator import Simulator
+from simulacion.cost_function import CostWeights
+from simulacion.objective import Baseline, ObjectiveEvaluator, improvement_pct
+from simulacion.scenario_generator import Scenario
+from simulacion.simulator import Simulator
 
 
 @dataclass
