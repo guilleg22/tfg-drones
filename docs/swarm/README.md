@@ -14,6 +14,7 @@ Lee en orden:
 4. [`03-ARCHITECTURE.md`](./03-ARCHITECTURE.md) — Diseño técnico propuesto.
 5. [`04-ROADMAP.md`](./04-ROADMAP.md) — Plan por fases con criterios.
 6. [`05-TASKS.md`](./05-TASKS.md) — Tareas atómicas listas para `TaskCreate`.
+7. [`06-DECONFLICTION.md`](./06-DECONFLICTION.md) — Diseño de deconflicción y tráfico seguro.
 
 ## TL;DR
 
