@@ -46,15 +46,18 @@ class StubBackend:
 def _add_dronlink_to_path():
     """Localiza la carpeta que contiene el paquete 'dronLink' y la añade a sys.path.
 
-    dronLink vive en el proyecto hermano (ProyectoDeDrones). Se busca en varias
-    ubicaciones habituales; con DRONLINK_PATH se puede forzar una ruta concreta.
+    dronLink va vendorizado en la raíz del repo (para que funcione al clonar). Se
+    buscan también ubicaciones del entorno de desarrollo; con DRONLINK_PATH se
+    puede forzar una ruta concreta.
     """
     candidates = []
     if os.environ.get("DRONLINK_PATH"):
         candidates.append(Path(os.environ["DRONLINK_PATH"]))
     root = Path(__file__).resolve().parent.parent  # ProyectoDrones_LOCAL
     candidates += [
-        root.parent / "ProyectoDeDrones",
+        root,                                  # dronLink vendorizado en el repo (clon)
+        root / "TFG" / "ProyectoDeDrones",     # copia de referencia dentro del repo
+        root.parent / "ProyectoDeDrones",      # proyecto hermano (desarrollo)
         root.parent / "TFG" / "ProyectoDeDrones",
         root.parent,
     ]
