@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirDrop · Administración</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+    <!-- Login admin -->
+    <div id="admin-login-view">
+        <h1>AirDrop · Admin</h1>
+        <p class="subtitle" id="login-subtitle">Accede al panel de administración.</p>
+
+        <form id="admin-login-form" onsubmit="admin.submitAuth(event)">
+            <div class="form-group">
+                <label>Usuario</label>
+                <input type="text" id="admin-user" required placeholder="admin">
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="admin-pass" required placeholder="••••••••">
+            </div>
+            <button type="submit" id="btn-admin-login">Entrar</button>
+        </form>
+        <p style="margin-top:16px;font-size:13px;"><a href="/">← Volver al portal de cliente</a></p>
+    </div>
+
+    <!-- Panel admin -->
+    <div id="admin-panel-view">
+        <div class="sidebar admin-sidebar">
+            <div class="sidebar-header">
+                <div class="logo">AirDrop · Admin</div>
+                <button class="logout-btn" onclick="admin.logout()">SALIR</button>
+            </div>
+
+            <div class="admin-tabs">
+                <button class="tab-btn active" data-tab="routes" onclick="admin.showTab('routes')">Rutas</button>
+                <button class="tab-btn" data-tab="orders" onclick="admin.showTab('orders')">Pedidos / Flota</button>
+            </div>
+
+            <div class="sidebar-content">
+                <!-- TAB RUTAS -->
+                <div id="tab-routes" class="tab-content active">
+                    <label>Perfil</label>
+                    <select id="profile-select" onchange="admin.selectProfile(this.value)"></select>
+
+                    <div class="profile-fields">
+                        <div>
+                            <label>Velocidad (m/s)</label>
+                            <input type="number" id="profile-speed" step="0.5" min="1">
+                        </div>
+                        <div>
+                            <label>Despegue (m)</label>
+                            <input type="number" id="profile-takeoff" step="1" min="1">
+                        </div>
+                    </div>
+
+                    <p class="hub-line" id="hub-line">HUB: no definido</p>
+                    <button class="secondary small" onclick="admin.startPick('hub')">Fijar HUB en el mapa</button>
+
+                    <h3>Parkings</h3>
+                    <ul class="edit-list" id="parkings-list"></ul>
+                    <button class="secondary small" onclick="admin.addPointPrompt('parking')">+ Añadir parking</button>
+
+                    <h3>Destinos</h3>
+                    <ul class="edit-list" id="dests-list"></ul>
+                    <button class="secondary small" onclick="admin.addPointPrompt('destination')">+ Añadir destino</button>
+
+                    <h3>Rutas</h3>
+                    <ul class="edit-list" id="routes-list"></ul>
+                    <button class="secondary small" onclick="admin.startRouteCreation()">+ Crear ruta</button>
+
+                    <div class="save-bar">
+                        <button onclick="admin.saveProfiles()">Guardar cambios</button>
+                    </div>
+                    <p class="status-line" id="routes-status"></p>
+                </div>
+
+                <!-- TAB PEDIDOS -->
+                <div id="tab-orders" class="tab-content">
+                    <h3>Flota de referencia</h3>
+                    <div id="fleet-box" class="fleet-box"></div>
+
+                    <h3>Pedidos</h3>
+                    <button class="secondary small" onclick="admin.loadOrders()">Actualizar</button>
+                    <div class="orders-list" id="admin-orders-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="admin-map"></div>
+            <div class="pick-banner hidden" id="pick-banner"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="ui.js"></script>
+    <script src="app.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
