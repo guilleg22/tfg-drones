@@ -304,6 +304,7 @@ const admin = {
                         · <span class="badge ${o.status}">${o.status}</span></span>
                 </div>
                 <div class="order-actions" onclick="event.stopPropagation()">
+                    <button class="mini" title="Enviar al dron (local)" onclick="admin.dispatch(${o.id})">🛩</button>
                     <button class="mini" title="En reparto" onclick="admin.setState(${o.id},'en_reparto','yendo a cliente')">▶</button>
                     <button class="mini" title="Entregado" onclick="admin.setState(${o.id},'entregado','entregado')">✓</button>
                     <button class="mini danger" title="Borrar" onclick="admin.deleteOrder(${o.id})">✕</button>
@@ -335,6 +336,14 @@ const admin = {
     async deleteOrder(id) {
         if (!(await UI.confirm('¿Borrar el pedido #' + id + '?'))) return;
         await fetch(`/api/admin/orders/${id}`, { method: 'DELETE', headers: this.authHeaders() });
+        this.loadOrders();
+    },
+
+    async dispatch(id) {
+        const res = await fetch(`/api/admin/orders/${id}/dispatch`, { method: 'POST', headers: this.authHeaders() });
+        const d = await res.json();
+        if (d.error) return UI.alert(d.error, 'Error');
+        await UI.alert('Misión enviada al dron (backend: ' + (d.backend || '?') + ').', 'Despacho');
         this.loadOrders();
     },
 };

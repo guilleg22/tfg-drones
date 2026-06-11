@@ -25,6 +25,7 @@ from simulacion.energy_model import DRONE_CATEGORIES
 from simulacion.scenario_generator import DEFAULT_FLEET_DISTRIBUTION
 from webapp import auth
 from webapp.data import DataStore
+from webapp.drone_backend import get_backend
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 PORTAL_DIR = PROJECT_DIR / "portal_cliente"
@@ -35,6 +36,9 @@ app.add_middleware(
 )
 
 store = DataStore()
+# Origen de telemetría / destino de misiones. En cloud es un stub; en local
+# (DRONE_BACKEND=local) se conecta a Mission Planner por dronLink.
+drone = get_backend()
 
 
 def _build_mission(profile_name, route_name):
@@ -171,8 +175,9 @@ def create_order(data: OrderIn, user=Depends(require_user)):
 
 @app.get("/api/drone/telemetry")
 def telemetry():
-    # Stub: sin dron/SITL en cloud no hay telemetría real.
-    return {"state": "idle", "telemetry": {}}
+    # En cloud el backend es un stub; en local devuelve la telemetría real de
+    # Mission Planner (posición, altitud, velocidad, rumbo).
+    return drone.telemetry()
 
 
 # ── Autenticación de administrador ───────────────────────────────────────────
@@ -245,6 +250,24 @@ def admin_order_state(order_id: int, data: OrderStateIn, _: str = Depends(requir
 def admin_delete_order(order_id: int, _: str = Depends(require_admin)):
     store.delete_order(order_id)
     return {"success": True}
+
+
+@app.post("/api/admin/orders/{order_id}/dispatch")
+def admin_dispatch(order_id: int, _: str = Depends(require_admin)):
+    """Envía la ruta del pedido al dron (solo con backend local/Mission Planner)."""
+    order = next((o for o in store.list_orders(None) if o["id"] == order_id), None)
+    if not order:
+        return JSONResponse({"error": "Pedido no encontrado"}, 404)
+    pname, rname = order.get("assigned_profile_name"), order.get("assigned_route_name")
+    if not pname or not rname:
+        return JSONResponse({"error": "El pedido no tiene ruta asignada"}, 400)
+    try:
+        mission = _build_mission(pname, rname)
+        drone.dispatch(mission, order_id=order_id)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 400)
+    store.update_order(order_id, status="en_reparto", operational_state="yendo a cliente")
+    return {"success": True, "backend": drone.name}
 
 
 @app.get("/api/admin/clients")
