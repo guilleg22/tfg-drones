@@ -248,6 +248,8 @@ def generate_batch(
     fleet_composition: dict[str, int] | None = None,
     weight_min_kg: float = 0.3,
     weight_max_kg: float = 4.0,
+    battery_min_pct: float = 0.6,
+    battery_max_pct: float = 1.0,
 ) -> list[Scenario]:
     """
     Genera múltiples escenarios para comparación estadística.
@@ -264,6 +266,9 @@ def generate_batch(
         Semilla base (cada escenario usa seed+i).
     charger_power_w : float
         Potencia del cargador (W).
+    battery_min_pct, battery_max_pct : float
+        Rango de batería inicial. Bajarlo crea escenarios con escasez de
+        autonomía, donde la asignación importa de verdad.
 
     Returns
     -------
@@ -278,6 +283,22 @@ def generate_batch(
             fleet_composition=fleet_composition,
             weight_min_kg=weight_min_kg,
             weight_max_kg=weight_max_kg,
+            battery_min_pct=battery_min_pct,
+            battery_max_pct=battery_max_pct,
         )
         for i in range(n_scenarios)
     ]
+
+
+# Escenario "exigente" por defecto para la comparación: un único ciclo de
+# despacho en el que la flota arranca con poca batería y los paquetes son
+# pesados, de modo que la demanda supera la capacidad disponible. Es el régimen
+# realista (una oleada de reparto) en el que la asignación global se distingue
+# de la voraz.
+DEMANDING_PRESET = dict(
+    n_orders=20,
+    weight_min_kg=2.0,
+    weight_max_kg=4.0,
+    battery_min_pct=0.5,
+    battery_max_pct=0.9,
+)

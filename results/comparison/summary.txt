@@ -1,21 +1,22 @@
 ============================================================
-RESULTADOS: Greedy vs. Jonker-Volgenant
+RESULTADOS: Greedy (FIFO) vs. Jonker-Volgenant (matriz de costes)
 ============================================================
 Escenarios evaluados: 200
 
-── Energía Total (Wh) ──
-  Greedy:          1079.81 Wh
-  JV (Costes):     1080.70 Wh
-  Ahorro:       -0.08%
-  p-value:      0.0062 (SIGNIFICATIVO)
-
-── Tiempo Total (s) ──
-  Greedy:         19266.29 s
-  JV (Costes):    19384.15 s
-  Ahorro:       -0.61%
+── Tasa de entrega (pedidos servidos / pedidos del ciclo) ──
+  Greedy:         34.9%  (7.0 pedidos)
+  JV (Costes):    47.2%  (9.4 pedidos)
+  Mejora JV:    +35.1%
   p-value:      0.0000 (SIGNIFICATIVO)
 
-── Pedidos Entregados ──
-  Greedy:       30.0
-  JV (Costes):  30.0
+── Energía por pedido entregado (Wh/pedido) ──
+  Greedy:          36.38 Wh
+  JV (Costes):     25.07 Wh
+  Ahorro JV:    +31.08%
+
+── Makespan del ciclo (s) ──
+  Greedy:          2843.56 s
+  JV (Costes):     2697.52 s
+  Ahorro:       +5.14%
+  p-value:      0.0000 (SIGNIFICATIVO)
 ============================================================

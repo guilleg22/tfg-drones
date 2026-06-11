@@ -383,3 +383,49 @@ class Simulator:
     ) -> list[SimulationResult]:
         """Ejecuta múltiples escenarios con el mismo algoritmo y pesos."""
         return [self.run(s, algorithm, weights) for s in scenarios]
+
+
+def dispatch_single_cycle(
+    scenario: Scenario,
+    algorithm: str,
+    weights: CostWeights,
+) -> AssignmentResult:
+    """
+    Ejecuta un único ciclo de despacho, sin recarga entre rondas.
+
+    Modela una oleada de reparto: dada la batería actual de la flota, se sirven
+    los pedidos pendientes hasta agotar la autonomía disponible. Es el régimen
+    donde la capacidad escasea y la asignación importa: el greedy (FIFO) puede
+    malgastar los drones capaces en los primeros pedidos y dejar el resto sin
+    servir, mientras que la asignación global por matriz de costes reparte mejor.
+
+    A diferencia de ``Simulator.run``, aquí NO se recargan baterías: el resultado
+    refleja cuántos pedidos cabe servir en una sola tanda.
+
+    Parameters
+    ----------
+    scenario : Scenario
+        Escenario con flota y pedidos.
+    algorithm : str
+        "greedy" o "cost_matrix".
+    weights : CostWeights
+        Pesos de la función de costes.
+
+    Returns
+    -------
+    AssignmentResult
+        Asignaciones, pedidos sin servir y totales (energía y makespan).
+    """
+    drones = [DroneState(spec=d.spec, battery_wh=d.battery_wh) for d in scenario.drones]
+    orders = [
+        Order(order_id=o.order_id, weight_kg=o.weight_kg, distance_km=o.distance_km,
+              client_lat=getattr(o, "client_lat", 0.0),
+              client_lon=getattr(o, "client_lon", 0.0),
+              destination_name=getattr(o, "destination_name", ""))
+        for o in scenario.orders
+    ]
+    if algorithm == "greedy":
+        return greedy_assign(drones, orders, weights, scenario.charger_power_w)
+    elif algorithm == "cost_matrix":
+        return cost_matrix_assign(drones, orders, weights, scenario.charger_power_w)
+    raise ValueError(f"Algoritmo desconocido: {algorithm}")

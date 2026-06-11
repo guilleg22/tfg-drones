@@ -1,18 +1,18 @@
 \begin{table}[htbp]
 \centering
-\caption{Comparación Greedy vs. Jonker-Volgenant (N=200 escenarios)}
+\caption{Comparación Greedy (FIFO) vs. Jonker-Volgenant (N=200 escenarios, ciclo único con escasez)}
 \label{tab:comparison}
 \begin{tabular}{lrrr}
 \hline
 \textbf{Métrica} & \textbf{Greedy} & \textbf{JV (Costes)} & \textbf{Mejora (\%)} \\
 \hline
-Energía total (Wh) & 1079.81 & 1080.70 & -0.08 \\
-Tiempo total (s) & 19266.29 & 19384.15 & -0.61 \\
-Pedidos entregados & 30.0 & 30.0 & — \\
+Tasa de entrega (\%) & 34.9 & 47.2 & 35.1 \\
+Energía por entrega (Wh) & 36.38 & 25.07 & 31.08 \\
+Makespan (s) & 2843.56 & 2697.52 & 5.14 \\
 \hline
 \multicolumn{4}{l}{\textit{Significancia estadística (p < 0.05):}} \\
-Energía (p-value) & \multicolumn{2}{c}{0.0062} & Sí \\
-Tiempo (p-value) & \multicolumn{2}{c}{0.0000} & Sí \\
+Entregas (p-value) & \multicolumn{2}{c}{0.0000} & Sí \\
+Makespan (p-value) & \multicolumn{2}{c}{0.0000} & Sí \\
 \hline
 \end{tabular}
 \end{table}
