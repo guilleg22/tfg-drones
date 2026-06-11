@@ -9,4 +9,6 @@ $env:DRONE_BACKEND = "local"
 # Descomenta para usar Supabase en vez de SQLite local:
 # $env:DATABASE_URL = "postgresql://..."
 
-uvicorn webapp.main:app --host 0.0.0.0 --port 8080
+# Se invoca como 'python -m uvicorn' para no depender de que el ejecutable
+# uvicorn esté en el PATH (con la Python de la Microsoft Store no suele estarlo).
+python -m uvicorn webapp.main:app --host 0.0.0.0 --port 8080

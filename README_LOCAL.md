@@ -35,10 +35,13 @@ $env:DRONE_BACKEND = "local"
 # $env:DRONLINK_PATH = "C:\Users\test\Desktop\TFG\ProyectoDeDrones"
 # Sin DATABASE_URL usa SQLite local; con ella, Supabase:
 # $env:DATABASE_URL = "postgresql://..."
-uvicorn webapp.main:app --host 0.0.0.0 --port 8080
+python -m uvicorn webapp.main:app --host 0.0.0.0 --port 8080
 ```
 
 O directamente: `./run_local.ps1`
+
+> Si ves `uvicorn no se reconoce...`, es que el ejecutable no está en el PATH;
+> usa `python -m uvicorn ...` como arriba (el script ya lo hace así).
 
 Abre **http://localhost:8080**.
 
