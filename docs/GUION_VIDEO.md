@@ -13,7 +13,7 @@ simulación reproducible en el repo y el diseño de deconflicción en marcha.
 
 ## 1 · Portal en la nube (70 s)
 
-- Abrir `https://<servicio>.onrender.com`.
+- Abrir https://tfg-drones.onrender.com/
 - **Acceder** con un nombre y una dirección de Castelldefels → mostrar que
   geocodifica y entra al panel.
 - **Crear un pedido** con un peso → señalar que el sistema le asigna solo el

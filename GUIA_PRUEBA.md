@@ -6,7 +6,7 @@ Dos formas de validar la entrega: el **portal en la nube** y la **simulación en
 
 ## 1. Portal en la nube (Render + Supabase)
 
-**URL:** `https://<tu-servicio>.onrender.com` *(rellenar con el dominio de Render)*
+**URL:** https://tfg-drones.onrender.com/
 
 Pasos:
 
