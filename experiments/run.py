@@ -21,13 +21,14 @@ from pathlib import Path
 
 from simulacion.cost_function import CostWeights, build_cost_matrix
 from simulacion.metrics import compute_comparison, results_summary_text, to_latex_table
-from simulacion.scenario_generator import generate_batch
-from simulacion.simulator import Simulator
+from simulacion.scenario_generator import DEMANDING_PRESET, generate_batch
+from simulacion.simulator import Simulator, dispatch_single_cycle
 from simulacion.visualization import (
     plot_comparison_bars,
     plot_comparison_boxplots,
     plot_convergence,
     plot_cost_heatmap,
+    plot_crossover,
     plot_pareto_front,
 )
 
@@ -53,19 +54,23 @@ def cmd_compare(args):
     out.mkdir(parents=True, exist_ok=True)
     weights = CostWeights(w1=args.w1, w2=args.w2, w3=args.w3, w4=args.w4)
 
+    # Escenario exigente: una oleada de despacho (ciclo único, sin recarga) con
+    # baterías limitadas y paquetes pesados, donde la demanda supera la capacidad
+    # y la asignación importa. Es el régimen que distingue greedy de JV.
     print(f"Comparación greedy vs matriz de costes — {args.n_scenarios} escenarios "
-          f"({args.n_drones} drones, {args.n_orders} pedidos)")
+          f"({args.n_drones} drones, {args.n_orders} pedidos, ciclo único con escasez)")
     scenarios = generate_batch(
         n_scenarios=args.n_scenarios, n_drones=args.n_drones,
         n_orders=args.n_orders, seed=args.seed, charger_power_w=args.charger_power,
+        weight_min_kg=args.weight_min, weight_max_kg=args.weight_max,
+        battery_min_pct=args.battery_min, battery_max_pct=args.battery_max,
     )
-    sim = Simulator(charger_power_w=args.charger_power)
 
     t0 = time.time()
-    greedy = sim.run_batch(scenarios, "greedy", weights)
+    greedy = [dispatch_single_cycle(s, "greedy", weights) for s in scenarios]
     print(f"  greedy: {time.time() - t0:.2f}s")
     t0 = time.time()
-    jv = sim.run_batch(scenarios, "cost_matrix", weights)
+    jv = [dispatch_single_cycle(s, "cost_matrix", weights) for s in scenarios]
     print(f"  cost_matrix: {time.time() - t0:.2f}s")
 
     metrics = compute_comparison(greedy, jv)
@@ -77,6 +82,26 @@ def cmd_compare(args):
     plot_comparison_bars(metrics, out / "comparison_bars.png")
     plot_comparison_boxplots(metrics, out / "comparison_boxplots.png")
 
+    # ── Curva de cruce: tasa de entrega según la demanda ──
+    print("\nBarrido de demanda (curva de cruce)...")
+    demands = list(range(args.n_drones, args.n_orders * 2 + 1, max(1, args.n_drones)))
+    g_rates, j_rates = [], []
+    for d in demands:
+        batch = generate_batch(
+            n_scenarios=max(20, args.n_scenarios // 4), n_drones=args.n_drones,
+            n_orders=d, seed=args.seed, charger_power_w=args.charger_power,
+            weight_min_kg=args.weight_min, weight_max_kg=args.weight_max,
+            battery_min_pct=args.battery_min, battery_max_pct=args.battery_max,
+        )
+        gm = compute_comparison(
+            [dispatch_single_cycle(s, "greedy", weights) for s in batch],
+            [dispatch_single_cycle(s, "cost_matrix", weights) for s in batch],
+        )
+        g_rates.append(gm.avg_greedy_delivery_rate)
+        j_rates.append(gm.avg_jv_delivery_rate)
+    plot_crossover(demands, g_rates, j_rates, out / "crossover.png")
+
+    # ── Heatmap de la matriz de costes de un escenario ──
     sc = scenarios[0]
     specs = [d.spec for d in sc.drones]
     batteries = [d.battery_wh for d in sc.drones]
@@ -228,9 +253,13 @@ def build_parser():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    c = sub.add_parser("compare", help="greedy vs matriz de costes")
-    _scenario_args(c)
+    c = sub.add_parser("compare", help="greedy vs matriz de costes (ciclo con escasez)")
+    _scenario_args(c, n_scenarios=200, n_orders=DEMANDING_PRESET["n_orders"])
     c.add_argument("--charger-power", type=float, default=180.0)
+    c.add_argument("--weight-min", type=float, default=DEMANDING_PRESET["weight_min_kg"])
+    c.add_argument("--weight-max", type=float, default=DEMANDING_PRESET["weight_max_kg"])
+    c.add_argument("--battery-min", type=float, default=DEMANDING_PRESET["battery_min_pct"])
+    c.add_argument("--battery-max", type=float, default=DEMANDING_PRESET["battery_max_pct"])
     c.add_argument("--w1", type=float, default=1.0)
     c.add_argument("--w2", type=float, default=1.0)
     c.add_argument("--w3", type=float, default=1.0)

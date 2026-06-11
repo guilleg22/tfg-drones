@@ -69,73 +69,105 @@ def plot_comparison_bars(
     """
     Gráfica de barras agrupadas: Greedy vs JV.
 
-    Muestra energía total, tiempo total y pedidos entregados.
+    Bajo escasez las métricas que distinguen a los algoritmos son la tasa de
+    entrega, la energía por pedido entregado y el makespan del ciclo.
     """
     _apply_style()
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 5))
 
-    # ── Energía ──
+    # ── Tasa de entrega ──
     ax = axes[0]
-    bars = ax.bar(
+    ax.bar(
         ["Greedy", "JV (Costes)"],
-        [metrics.avg_greedy_energy, metrics.avg_jv_energy],
-        color=[COLOR_GREEDY, COLOR_JV],
-        edgecolor="white",
-        linewidth=1.5,
+        [metrics.avg_greedy_delivery_rate * 100, metrics.avg_jv_delivery_rate * 100],
+        color=[COLOR_GREEDY, COLOR_JV], edgecolor="white", linewidth=1.5,
     )
-    ax.set_title("Energía Total Promedio")
-    ax.set_ylabel("Energía (Wh)")
-    # Anotar mejora
-    if metrics.energy_saving_pct != 0:
+    ax.set_title("Tasa de Entrega")
+    ax.set_ylabel("% pedidos servidos")
+    ax.set_ylim(0, 100)
+    if metrics.delivery_rate_improvement_pct != 0:
         ax.annotate(
-            f"{metrics.energy_saving_pct:+.1f}%",
-            xy=(1, metrics.avg_jv_energy),
-            ha="center", va="bottom",
-            fontsize=12, fontweight="bold",
-            color=COLOR_JV if metrics.energy_saving_pct > 0 else COLOR_GREEDY,
+            f"{metrics.delivery_rate_improvement_pct:+.1f}%",
+            xy=(1, metrics.avg_jv_delivery_rate * 100),
+            ha="center", va="bottom", fontsize=12, fontweight="bold",
+            color=COLOR_JV if metrics.delivery_rate_improvement_pct > 0 else COLOR_GREEDY,
         )
-    sig = "(p<0.05)" if metrics.significant_energy else ""
-    ax.set_xlabel(f"p = {metrics.p_value_energy:.4f} {sig}")
+    sig = "(p<0.05)" if metrics.significant_delivered else ""
+    ax.set_xlabel(f"p = {metrics.p_value_delivered:.4f} {sig}")
 
-    # ── Tiempo ──
+    # ── Energía por entrega ──
     ax = axes[1]
     ax.bar(
         ["Greedy", "JV (Costes)"],
-        [metrics.avg_greedy_time, metrics.avg_jv_time],
-        color=[COLOR_GREEDY, COLOR_JV],
-        edgecolor="white",
-        linewidth=1.5,
+        [metrics.avg_greedy_energy_per_delivery, metrics.avg_jv_energy_per_delivery],
+        color=[COLOR_GREEDY, COLOR_JV], edgecolor="white", linewidth=1.5,
     )
-    ax.set_title("Tiempo Total Promedio (Makespan)")
+    ax.set_title("Energía por Pedido Entregado")
+    ax.set_ylabel("Wh / pedido")
+    if metrics.energy_per_delivery_saving_pct != 0:
+        ax.annotate(
+            f"{metrics.energy_per_delivery_saving_pct:+.1f}%",
+            xy=(1, metrics.avg_jv_energy_per_delivery),
+            ha="center", va="bottom", fontsize=12, fontweight="bold",
+            color=COLOR_JV if metrics.energy_per_delivery_saving_pct > 0 else COLOR_GREEDY,
+        )
+
+    # ── Makespan ──
+    ax = axes[2]
+    ax.bar(
+        ["Greedy", "JV (Costes)"],
+        [metrics.avg_greedy_time, metrics.avg_jv_time],
+        color=[COLOR_GREEDY, COLOR_JV], edgecolor="white", linewidth=1.5,
+    )
+    ax.set_title("Makespan del Ciclo")
     ax.set_ylabel("Tiempo (s)")
     if metrics.time_saving_pct != 0:
         ax.annotate(
             f"{metrics.time_saving_pct:+.1f}%",
             xy=(1, metrics.avg_jv_time),
-            ha="center", va="bottom",
-            fontsize=12, fontweight="bold",
+            ha="center", va="bottom", fontsize=12, fontweight="bold",
             color=COLOR_JV if metrics.time_saving_pct > 0 else COLOR_GREEDY,
         )
-    sig = "(p<0.05)" if metrics.significant_time else ""
-    ax.set_xlabel(f"p = {metrics.p_value_time:.4f} {sig}")
-
-    # ── Entregas ──
-    ax = axes[2]
-    ax.bar(
-        ["Greedy", "JV (Costes)"],
-        [metrics.avg_greedy_delivered, metrics.avg_jv_delivered],
-        color=[COLOR_GREEDY, COLOR_JV],
-        edgecolor="white",
-        linewidth=1.5,
-    )
-    ax.set_title("Pedidos Entregados Promedio")
-    ax.set_ylabel("Nº Pedidos")
 
     fig.suptitle(
-        f"Comparación Greedy vs. Jonker-Volgenant (N={metrics.n_scenarios} escenarios)",
+        f"Comparación Greedy vs. Jonker-Volgenant (N={metrics.n_scenarios} escenarios, ciclo con escasez)",
         fontsize=14, fontweight="bold", y=1.02,
     )
+    plt.tight_layout()
+    plt.savefig(str(output_path))
+    plt.close(fig)
+
+
+def plot_crossover(
+    demands: list[int],
+    greedy_rates: list[float],
+    jv_rates: list[float],
+    output_path: str | Path,
+) -> None:
+    """
+    Curva de cruce: tasa de entrega de cada algoritmo según la demanda.
+
+    Al aumentar el número de pedidos por ciclo (con flota fija), la capacidad
+    se satura. El gráfico muestra dónde la asignación global (JV) empieza a
+    despegarse del greedy: con poca demanda ambos entregan todo; al crecer la
+    contención, el greedy se degrada antes.
+    """
+    _apply_style()
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+
+    ax.plot(demands, [r * 100 for r in greedy_rates], color=COLOR_GREEDY,
+            linewidth=2.2, marker="o", markersize=5, label="Greedy (FIFO)")
+    ax.plot(demands, [r * 100 for r in jv_rates], color=COLOR_JV,
+            linewidth=2.2, marker="s", markersize=5, label="JV (matriz de costes)")
+
+    ax.set_xlabel("Pedidos por ciclo (demanda)")
+    ax.set_ylabel("Tasa de entrega (%)")
+    ax.set_ylim(0, 102)
+    ax.set_title("Cruce de rendimiento: el coste de la miopía del greedy",
+                 fontsize=14, fontweight="bold")
+    ax.legend(loc="best")
+
     plt.tight_layout()
     plt.savefig(str(output_path))
     plt.close(fig)

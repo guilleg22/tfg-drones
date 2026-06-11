@@ -48,6 +48,18 @@ class ComparisonMetrics:
     significant_energy: bool  # p < 0.05
     significant_time: bool
 
+    # Tasa de entrega y energía por entrega. Bajo escasez los dos algoritmos
+    # entregan números distintos de pedidos, así que la energía total no es
+    # comparable directamente: lo justo es la energía por pedido entregado.
+    avg_greedy_delivery_rate: float = 0.0
+    avg_jv_delivery_rate: float = 0.0
+    delivery_rate_improvement_pct: float = 0.0
+    p_value_delivered: float = 1.0
+    significant_delivered: bool = False
+    avg_greedy_energy_per_delivery: float = 0.0
+    avg_jv_energy_per_delivery: float = 0.0
+    energy_per_delivery_saving_pct: float = 0.0
+
 
 def compute_comparison(
     greedy_results: list[SimulationResult],
@@ -81,22 +93,46 @@ def compute_comparison(
     g_delivered = [r.n_delivered for r in greedy_results]
     j_delivered = [r.n_delivered for r in jv_results]
 
+    # Tasa de entrega por escenario = entregados / (entregados + sin asignar).
+    def _rate(r) -> float:
+        total = r.n_delivered + r.n_unassigned
+        return r.n_delivered / total if total > 0 else 0.0
+
+    g_rates = [_rate(r) for r in greedy_results]
+    j_rates = [_rate(r) for r in jv_results]
+
+    # Energía por pedido entregado (métrica justa cuando entregan distinto número).
+    g_epd = [e / d if d > 0 else 0.0 for e, d in zip(g_energies, g_delivered)]
+    j_epd = [e / d if d > 0 else 0.0 for e, d in zip(j_energies, j_delivered)]
+
     avg_g_e = np.mean(g_energies)
     avg_j_e = np.mean(j_energies)
     avg_g_t = np.mean(g_times)
     avg_j_t = np.mean(j_times)
+    avg_g_rate = np.mean(g_rates)
+    avg_j_rate = np.mean(j_rates)
+    avg_g_epd = np.mean(g_epd)
+    avg_j_epd = np.mean(j_epd)
 
     # Mejoras porcentuales (positivo = JV consume/tarda menos)
     energy_saving = ((avg_g_e - avg_j_e) / avg_g_e * 100) if avg_g_e > 0 else 0.0
     time_saving = ((avg_g_t - avg_j_t) / avg_g_t * 100) if avg_g_t > 0 else 0.0
+    rate_improvement = ((avg_j_rate - avg_g_rate) / avg_g_rate * 100) if avg_g_rate > 0 else 0.0
+    epd_saving = ((avg_g_epd - avg_j_epd) / avg_g_epd * 100) if avg_g_epd > 0 else 0.0
 
     # T-test pareado
     if n >= 2:
         t_stat_e, p_energy = stats.ttest_rel(g_energies, j_energies)
         t_stat_t, p_time = stats.ttest_rel(g_times, j_times)
+        # Si en todos los escenarios la entrega es idéntica, el t-test es nan.
+        if np.allclose(g_delivered, j_delivered):
+            p_delivered = 1.0
+        else:
+            _, p_delivered = stats.ttest_rel(g_delivered, j_delivered)
     else:
         p_energy = 1.0
         p_time = 1.0
+        p_delivered = 1.0
 
     return ComparisonMetrics(
         n_scenarios=n,
@@ -118,6 +154,14 @@ def compute_comparison(
         p_value_time=float(p_time),
         significant_energy=p_energy < 0.05,
         significant_time=p_time < 0.05,
+        avg_greedy_delivery_rate=float(avg_g_rate),
+        avg_jv_delivery_rate=float(avg_j_rate),
+        delivery_rate_improvement_pct=float(rate_improvement),
+        p_value_delivered=float(p_delivered),
+        significant_delivered=p_delivered < 0.05,
+        avg_greedy_energy_per_delivery=float(avg_g_epd),
+        avg_jv_energy_per_delivery=float(avg_j_epd),
+        energy_per_delivery_saving_pct=float(epd_saving),
     )
 
 
@@ -130,62 +174,71 @@ def to_latex_table(metrics: ComparisonMetrics) -> str:
     str
         Código LaTeX de la tabla.
     """
-    sig_e = "Sí" if metrics.significant_energy else "No"
+    sig_d = "Sí" if metrics.significant_delivered else "No"
     sig_t = "Sí" if metrics.significant_time else "No"
 
     latex = r"""
 \begin{table}[htbp]
 \centering
-\caption{Comparación Greedy vs. Jonker-Volgenant (N=%d escenarios)}
+\caption{Comparación Greedy (FIFO) vs. Jonker-Volgenant (N=%d escenarios, ciclo único con escasez)}
 \label{tab:comparison}
 \begin{tabular}{lrrr}
 \hline
 \textbf{Métrica} & \textbf{Greedy} & \textbf{JV (Costes)} & \textbf{Mejora (\%%)} \\
 \hline
-Energía total (Wh) & %.2f & %.2f & %.2f \\
-Tiempo total (s) & %.2f & %.2f & %.2f \\
-Pedidos entregados & %.1f & %.1f & — \\
+Tasa de entrega (\%%) & %.1f & %.1f & %.1f \\
+Energía por entrega (Wh) & %.2f & %.2f & %.2f \\
+Makespan (s) & %.2f & %.2f & %.2f \\
 \hline
 \multicolumn{4}{l}{\textit{Significancia estadística (p < 0.05):}} \\
-Energía (p-value) & \multicolumn{2}{c}{%.4f} & %s \\
-Tiempo (p-value) & \multicolumn{2}{c}{%.4f} & %s \\
+Entregas (p-value) & \multicolumn{2}{c}{%.4f} & %s \\
+Makespan (p-value) & \multicolumn{2}{c}{%.4f} & %s \\
 \hline
 \end{tabular}
 \end{table}
 """ % (
         metrics.n_scenarios,
-        metrics.avg_greedy_energy, metrics.avg_jv_energy, metrics.energy_saving_pct,
+        metrics.avg_greedy_delivery_rate * 100, metrics.avg_jv_delivery_rate * 100,
+        metrics.delivery_rate_improvement_pct,
+        metrics.avg_greedy_energy_per_delivery, metrics.avg_jv_energy_per_delivery,
+        metrics.energy_per_delivery_saving_pct,
         metrics.avg_greedy_time, metrics.avg_jv_time, metrics.time_saving_pct,
-        metrics.avg_greedy_delivered, metrics.avg_jv_delivered,
-        metrics.p_value_energy, sig_e,
+        metrics.p_value_delivered, sig_d,
         metrics.p_value_time, sig_t,
     )
     return latex.strip()
+
+
+def _sig(flag: bool) -> str:
+    return "SIGNIFICATIVO" if flag else "no significativo"
 
 
 def results_summary_text(metrics: ComparisonMetrics) -> str:
     """Genera un resumen textual de los resultados."""
     lines = [
         "=" * 60,
-        "RESULTADOS: Greedy vs. Jonker-Volgenant",
+        "RESULTADOS: Greedy (FIFO) vs. Jonker-Volgenant (matriz de costes)",
         "=" * 60,
         f"Escenarios evaluados: {metrics.n_scenarios}",
         "",
-        "── Energía Total (Wh) ──",
-        f"  Greedy:       {metrics.avg_greedy_energy:10.2f} Wh",
-        f"  JV (Costes):  {metrics.avg_jv_energy:10.2f} Wh",
-        f"  Ahorro:       {metrics.energy_saving_pct:+.2f}%",
-        f"  p-value:      {metrics.p_value_energy:.4f} ({'SIGNIFICATIVO' if metrics.significant_energy else 'no significativo'})",
+        "── Tasa de entrega (pedidos servidos / pedidos del ciclo) ──",
+        f"  Greedy:       {metrics.avg_greedy_delivery_rate * 100:6.1f}%  "
+        f"({metrics.avg_greedy_delivered:.1f} pedidos)",
+        f"  JV (Costes):  {metrics.avg_jv_delivery_rate * 100:6.1f}%  "
+        f"({metrics.avg_jv_delivered:.1f} pedidos)",
+        f"  Mejora JV:    {metrics.delivery_rate_improvement_pct:+.1f}%",
+        f"  p-value:      {metrics.p_value_delivered:.4f} ({_sig(metrics.significant_delivered)})",
         "",
-        "── Tiempo Total (s) ──",
+        "── Energía por pedido entregado (Wh/pedido) ──",
+        f"  Greedy:       {metrics.avg_greedy_energy_per_delivery:8.2f} Wh",
+        f"  JV (Costes):  {metrics.avg_jv_energy_per_delivery:8.2f} Wh",
+        f"  Ahorro JV:    {metrics.energy_per_delivery_saving_pct:+.2f}%",
+        "",
+        "── Makespan del ciclo (s) ──",
         f"  Greedy:       {metrics.avg_greedy_time:10.2f} s",
         f"  JV (Costes):  {metrics.avg_jv_time:10.2f} s",
         f"  Ahorro:       {metrics.time_saving_pct:+.2f}%",
-        f"  p-value:      {metrics.p_value_time:.4f} ({'SIGNIFICATIVO' if metrics.significant_time else 'no significativo'})",
-        "",
-        "── Pedidos Entregados ──",
-        f"  Greedy:       {metrics.avg_greedy_delivered:.1f}",
-        f"  JV (Costes):  {metrics.avg_jv_delivered:.1f}",
+        f"  p-value:      {metrics.p_value_time:.4f} ({_sig(metrics.significant_time)})",
         "=" * 60,
     ]
     return "\n".join(lines)
