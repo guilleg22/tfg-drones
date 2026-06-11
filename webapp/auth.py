@@ -50,15 +50,20 @@ def _sign(payload_b64: str) -> str:
     return base64.urlsafe_b64encode(sig).decode().rstrip("=")
 
 
-def create_token(username: str) -> str:
-    """Token 'payload.firma' con el usuario y la caducidad."""
-    payload = {"sub": username, "exp": int(time.time()) + _TOKEN_TTL_S}
+def create_token(username: str, typ: str = "admin") -> str:
+    """Token 'payload.firma' con el usuario, su rol y la caducidad.
+
+    typ distingue administradores ('admin') de usuarios del portal ('user'),
+    para que un token de un rol no valga en los endpoints del otro.
+    """
+    payload = {"sub": username, "typ": typ, "exp": int(time.time()) + _TOKEN_TTL_S}
     payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
     return f"{payload_b64}.{_sign(payload_b64)}"
 
 
-def verify_token(token: str) -> str | None:
-    """Devuelve el usuario si el token es válido y no ha caducado; si no, None."""
+def verify_token(token: str, typ: str | None = None) -> str | None:
+    """Devuelve el usuario si el token es válido, no ha caducado y, si se pide,
+    su rol coincide con ``typ``; si no, None."""
     if not token or "." not in token:
         return None
     payload_b64, sig = token.rsplit(".", 1)
@@ -70,5 +75,7 @@ def verify_token(token: str) -> str | None:
     except (ValueError, json.JSONDecodeError):
         return None
     if payload.get("exp", 0) < time.time():
+        return None
+    if typ is not None and payload.get("typ") != typ:
         return None
     return payload.get("sub")

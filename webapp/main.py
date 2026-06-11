@@ -51,11 +51,22 @@ class LoginIn(BaseModel):
 
 
 class OrderIn(BaseModel):
-    client_id: int
     weight_kg: float = 1.0
 
 
 class AdminCredentials(BaseModel):
+    username: str = ""
+    password: str = ""
+
+
+class UserRegister(BaseModel):
+    username: str = ""
+    password: str = ""
+    name: str = ""
+    address: str = ""
+
+
+class UserLogin(BaseModel):
     username: str = ""
     password: str = ""
 
@@ -84,6 +95,45 @@ def login(data: LoginIn):
     return {"client": store.create_client(name, address, lat, lon)}
 
 
+# ── Cuentas de usuario (portal de cliente) ───────────────────────────────────
+
+def require_user(authorization: str = Header(default="")):
+    """Dependencia: exige un token de usuario válido y devuelve su cuenta."""
+    token = authorization[7:] if authorization.lower().startswith("bearer ") else authorization
+    username = auth.verify_token(token, "user")
+    user = store.get_user(username) if username else None
+    if not user:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    return user
+
+
+@app.post("/api/users/register")
+def user_register(data: UserRegister):
+    username, password = data.username.strip(), data.password
+    name, address = data.name.strip(), data.address.strip()
+    if not username or len(password) < 6 or not name or not address:
+        return JSONResponse(
+            {"error": "Usuario, contraseña (6+), nombre y dirección son obligatorios"}, 400)
+    if store.get_user(username):
+        return JSONResponse({"error": "Ese usuario ya existe"}, 409)
+    try:
+        lat, lon = geocode_address(address)
+    except Exception:
+        lat, lon = None, None
+    client = store.create_client(name, address, lat, lon)
+    store.create_user(username, auth.hash_password(password), client["id"])
+    return {"token": auth.create_token(username, "user"), "client": client}
+
+
+@app.post("/api/users/login")
+def user_login(data: UserLogin):
+    user = store.get_user(data.username.strip())
+    if not user or not auth.verify_password(data.password, user["password_hash"]):
+        return JSONResponse({"error": "Credenciales incorrectas"}, 401)
+    client = store.get_client(user["client_id"])
+    return {"token": auth.create_token(user["username"], "user"), "client": client}
+
+
 def _attach_waypoints(order_list):
     """Añade a cada pedido los waypoints de su ruta para dibujarla en el mapa."""
     for o in order_list:
@@ -102,18 +152,18 @@ def _attach_waypoints(order_list):
 
 
 @app.get("/api/orders")
-def list_orders(client_id: int | None = None):
+def list_orders(user=Depends(require_user)):
     try:
-        result = store.list_orders(client_id)
+        result = store.list_orders(user["client_id"])
     except Exception as e:
         return JSONResponse({"error": str(e)}, 400)
     return {"orders": _attach_waypoints(result)}
 
 
 @app.post("/api/orders")
-def create_order(data: OrderIn):
+def create_order(data: OrderIn, user=Depends(require_user)):
     try:
-        assignment = store.create_order(data.client_id, data.weight_kg)
+        assignment = store.create_order(user["client_id"], data.weight_kg)
     except Exception as e:
         return JSONResponse({"error": str(e)}, 400)
     return {"success": True, "assignment": assignment}
@@ -130,7 +180,7 @@ def telemetry():
 def require_admin(authorization: str = Header(default="")):
     """Dependencia: exige un token de admin válido en la cabecera Authorization."""
     token = authorization[7:] if authorization.lower().startswith("bearer ") else authorization
-    username = auth.verify_token(token)
+    username = auth.verify_token(token, "admin")
     if not username:
         raise HTTPException(status_code=401, detail="No autorizado")
     return username
@@ -152,7 +202,7 @@ def admin_register(data: AdminCredentials):
     if not username or len(password) < 6:
         return JSONResponse({"error": "Usuario obligatorio y contraseña de 6+ caracteres"}, 400)
     store.create_admin(username, auth.hash_password(password))
-    return {"token": auth.create_token(username), "username": username}
+    return {"token": auth.create_token(username, "admin"), "username": username}
 
 
 @app.post("/api/admin/login")
@@ -160,7 +210,7 @@ def admin_login(data: AdminCredentials):
     admin = store.get_admin(data.username.strip())
     if not admin or not auth.verify_password(data.password, admin["password_hash"]):
         return JSONResponse({"error": "Credenciales incorrectas"}, 401)
-    return {"token": auth.create_token(admin["username"]), "username": admin["username"]}
+    return {"token": auth.create_token(admin["username"], "admin"), "username": admin["username"]}
 
 
 # ── Panel de administrador: perfiles de ruta ─────────────────────────────────

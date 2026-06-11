@@ -64,6 +64,16 @@ admins = Table(
     Column("created_at", DateTime, default=lambda: datetime.now(timezone.utc)),
 )
 
+# Usuarios del portal de cliente (cuenta con contraseña ligada a un cliente).
+users = Table(
+    "users", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("username", String(128), nullable=False, unique=True),
+    Column("password_hash", String(256), nullable=False),
+    Column("client_id", Integer, ForeignKey("clients.id"), nullable=False),
+    Column("created_at", DateTime, default=lambda: datetime.now(timezone.utc)),
+)
+
 # Configuración clave/valor (JSON). Aquí persisten los perfiles de ruta, que en
 # Render no pueden vivir en un fichero porque el disco es efímero.
 config = Table(
@@ -178,6 +188,34 @@ class DataStore:
             ).inserted_primary_key[0]
         return {"id": cid, "name": name.strip(), "address": address.strip(),
                 "latitude": lat, "longitude": lon}
+
+    def get_client(self, client_id):
+        with self.engine.connect() as conn:
+            row = conn.execute(
+                select(clients.c.id, clients.c.name, clients.c.address,
+                       clients.c.latitude, clients.c.longitude)
+                .where(clients.c.id == int(client_id))
+            ).mappings().first()
+        return dict(row) if row else None
+
+    # ── Usuarios del portal ──────────────────────────────────────────────
+
+    def get_user(self, username):
+        with self.engine.connect() as conn:
+            row = conn.execute(
+                select(users.c.id, users.c.username, users.c.password_hash, users.c.client_id)
+                .where(users.c.username == username)
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def create_user(self, username, password_hash, client_id):
+        with self.engine.begin() as conn:
+            uid = conn.execute(
+                users.insert().values(
+                    username=username, password_hash=password_hash, client_id=int(client_id),
+                )
+            ).inserted_primary_key[0]
+        return {"id": uid, "username": username, "client_id": int(client_id)}
 
     # ── Pedidos ──────────────────────────────────────────────────────────
 
