@@ -145,22 +145,49 @@ const app = {
     showDashboard() {
         document.getElementById('login-view').style.display = 'none';
         document.getElementById('dashboard-view').classList.add('active');
-        document.getElementById('user-name').innerText = this.client.name;
-
-        // Set client marker
-        this.clientMarker.setLatLng([this.client.latitude, this.client.longitude]);
-        this.clientMarker.setOpacity(1);
-        this.map.setView([this.client.latitude, this.client.longitude], 14);
+        this._renderClient();
 
         setTimeout(() => this.map.invalidateSize(), 100);
 
         this.fetchOrders();
-        
+
         if (this.pollInterval) clearInterval(this.pollInterval);
         this.pollInterval = setInterval(() => {
             this.fetchOrders();
             this.fetchTelemetry();
         }, 2000);
+    },
+
+    _renderClient() {
+        document.getElementById('user-name').innerText = this.client.name;
+        document.getElementById('user-address').innerText = this.client.address || '';
+        if (this.client.latitude != null && this.client.longitude != null) {
+            this.clientMarker.setLatLng([this.client.latitude, this.client.longitude]).setOpacity(1);
+            this.map.setView([this.client.latitude, this.client.longitude], 14);
+        }
+    },
+
+    async editAddress() {
+        const r = await UI.form({
+            title: 'Editar dirección',
+            fields: [{ name: 'address', label: 'Dirección', value: this.client.address || '' }],
+            submitLabel: 'Guardar',
+        });
+        if (!r || !r.address) return;
+        try {
+            const res = await fetch(`${API_BASE}/users/me`, {
+                method: 'PUT', headers: this.authHeaders(),
+                body: JSON.stringify({ address: r.address }),
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            this.client = data.client;
+            localStorage.setItem('drone_client', JSON.stringify(this.client));
+            this._renderClient();
+            this.fetchOrders();
+        } catch (err) {
+            UI.alert(err.message, 'Error');
+        }
     },
 
     createNewOrder() {

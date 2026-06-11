@@ -83,24 +83,38 @@ const admin = {
         setTimeout(() => this.map.invalidateSize(), 150);
     },
 
+    toggleMonitor() {
+        const body = document.getElementById('dm-body');
+        const open = body.classList.toggle('hidden') === false;
+        document.getElementById('dm-toggle').innerText = open ? '▾' : '▸';
+    },
+
     async pollTelemetry() {
         try {
             const d = await fetch('/api/drone/telemetry').then(r => r.json());
             const tel = d.telemetry || {};
-            const overlay = document.getElementById('admin-telemetry');
             const hasFix = tel.lat != null && tel.lon != null;
-            const active = d.state && d.state !== 'idle';
-            overlay.classList.toggle('hidden', !active && !hasFix);
-            document.getElementById('admin-drone-state').innerText = d.state || '—';
+
+            document.getElementById('dm-state').innerText = d.state || '—';
+            const fmt = (v, dec, unit) => (v == null ? '—' : Number(v).toFixed(dec) + (unit || ''));
+            document.getElementById('dm-rows').innerHTML =
+                this._dmRow('Modo de vuelo', tel.flightMode || '—')
+                + this._dmRow('Latitud', tel.lat != null ? Number(tel.lat).toFixed(6) : '—')
+                + this._dmRow('Longitud', tel.lon != null ? Number(tel.lon).toFixed(6) : '—')
+                + this._dmRow('Altitud', fmt(tel.alt, 1, ' m'))
+                + this._dmRow('Velocidad', fmt(tel.groundSpeed != null ? tel.groundSpeed : tel.speed, 1, ' m/s'))
+                + this._dmRow('Rumbo', fmt(tel.heading, 0, '°'));
+
             if (hasFix) {
-                document.getElementById('adm-tel-alt').innerText = (tel.alt || 0).toFixed(1) + ' m';
-                document.getElementById('adm-tel-spd').innerText = (tel.groundSpeed || tel.speed || 0).toFixed(1) + ' m/s';
-                document.getElementById('adm-tel-hdg').innerText = (tel.heading || 0).toFixed(0) + '°';
                 this.droneMarker.setLatLng([tel.lat, tel.lon]).setOpacity(1);
             } else {
                 this.droneMarker.setOpacity(0);
             }
         } catch (e) { /* sin telemetría */ }
+    },
+
+    _dmRow(label, value) {
+        return `<div class="dm-row"><span>${label}</span><b>${value}</b></div>`;
     },
 
     // ── Perfiles ─────────────────────────────────────────────────────────
@@ -354,10 +368,41 @@ const admin = {
     // ── Pedidos / flota ──────────────────────────────────────────────────
     showTab(tab) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-        document.getElementById('tab-routes').classList.toggle('active', tab === 'routes');
-        document.getElementById('tab-orders').classList.toggle('active', tab === 'orders');
+        ['routes', 'orders', 'accounts'].forEach(t =>
+            document.getElementById('tab-' + t).classList.toggle('active', t === tab));
         if (tab === 'orders') this.loadOrders();
         if (tab === 'routes') this.drawProfile();
+        if (tab === 'accounts') this.loadAccounts();
+    },
+
+    async loadAccounts() {
+        const res = await fetch('/api/admin/clients', { headers: this.authHeaders() });
+        if (res.status === 401) return this.logout();
+        const d = await res.json();
+        const list = document.getElementById('accounts-list');
+        if (!d.clients || !d.clients.length) { list.innerHTML = '<li class="muted">Sin cuentas.</li>'; return; }
+        list.innerHTML = d.clients.map(c =>
+            `<li><span>${c.name}<br><small class="muted">${c.address}</small></span>`
+            + `<button class="x" title="Editar" onclick='admin.editClient(${c.id}, ${JSON.stringify(c.name)}, ${JSON.stringify(c.address)})'>✎</button></li>`).join('');
+    },
+
+    async editClient(id, name, address) {
+        const r = await UI.form({
+            title: 'Editar cuenta',
+            fields: [
+                { name: 'name', label: 'Nombre', value: name },
+                { name: 'address', label: 'Dirección', value: address },
+            ],
+            submitLabel: 'Guardar',
+        });
+        if (!r) return;
+        const res = await fetch(`/api/admin/clients/${id}`, {
+            method: 'PUT', headers: this.authHeaders(),
+            body: JSON.stringify({ name: r.name, address: r.address }),
+        });
+        const d = await res.json();
+        if (d.error) return UI.alert(d.error, 'Error');
+        this.loadAccounts();
     },
 
     async loadFleet() {

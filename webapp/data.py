@@ -198,6 +198,19 @@ class DataStore:
             ).mappings().first()
         return dict(row) if row else None
 
+    def update_client(self, client_id, name=None, address=None, lat=None, lon=None):
+        values = {}
+        if name is not None:
+            values["name"] = name.strip()
+        if address is not None:
+            values["address"] = address.strip()
+            values["latitude"] = lat
+            values["longitude"] = lon
+        if values:
+            with self.engine.begin() as conn:
+                conn.execute(update(clients).where(clients.c.id == int(client_id)).values(**values))
+        return self.get_client(client_id)
+
     # ── Usuarios del portal ──────────────────────────────────────────────
 
     def get_user(self, username):

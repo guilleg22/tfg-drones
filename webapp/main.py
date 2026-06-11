@@ -75,6 +75,11 @@ class UserLogin(BaseModel):
     password: str = ""
 
 
+class AccountUpdate(BaseModel):
+    name: str | None = None
+    address: str | None = None
+
+
 class OrderStateIn(BaseModel):
     status: str | None = None
     operational_state: str | None = None
@@ -136,6 +141,28 @@ def user_login(data: UserLogin):
         return JSONResponse({"error": "Credenciales incorrectas"}, 401)
     client = store.get_client(user["client_id"])
     return {"token": auth.create_token(user["username"], "user"), "client": client}
+
+
+def _apply_account_update(client_id, name, address):
+    """Actualiza nombre y/o dirección de un cliente, re-geocodificando si cambia."""
+    name = (name or "").strip()
+    address = (address or "").strip()
+    if address:
+        try:
+            lat, lon = geocode_address(address)
+        except Exception:
+            lat, lon = None, None
+        return store.update_client(client_id, name=name or None, address=address, lat=lat, lon=lon)
+    return store.update_client(client_id, name=name or None)
+
+
+@app.put("/api/users/me")
+def user_update_me(data: AccountUpdate, user=Depends(require_user)):
+    """El usuario edita su propia dirección (y nombre)."""
+    if not (data.address or "").strip() and not (data.name or "").strip():
+        return JSONResponse({"error": "Nada que actualizar"}, 400)
+    client = _apply_account_update(user["client_id"], data.name, data.address)
+    return {"client": client}
 
 
 def _attach_waypoints(order_list):
@@ -295,6 +322,15 @@ def admin_drone_control(action: str, _: str = Depends(require_admin)):
 @app.get("/api/admin/clients")
 def admin_clients(_: str = Depends(require_admin)):
     return {"clients": store.list_clients()}
+
+
+@app.put("/api/admin/clients/{client_id}")
+def admin_update_client(client_id: int, data: AccountUpdate, _: str = Depends(require_admin)):
+    """El admin edita nombre/dirección de cualquier cuenta."""
+    if not store.get_client(client_id):
+        return JSONResponse({"error": "Cliente no encontrado"}, 404)
+    client = _apply_account_update(client_id, data.name, data.address)
+    return {"client": client}
 
 
 @app.get("/api/admin/fleet")

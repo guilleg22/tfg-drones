@@ -126,6 +126,41 @@ button.mini.danger:hover { background: var(--danger); color: #fff; border-color:
 /* Mapa admin */
 #admin-map { width: 100%; height: 100%; background: #e0e0e0; }
 
+/* Monitor de dron (panel desplegable a la derecha) */
+.drone-monitor {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 240px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+}
+.dm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+}
+.dm-body { padding: 12px 14px; max-height: 60vh; overflow-y: auto; }
+.dm-drone-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.dm-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.dm-row span { color: var(--text-muted); }
+.dm-row b { font-family: 'Courier New', monospace; }
+
 .pick-banner {
   position: absolute;
   top: 16px; left: 50%; transform: translateX(-50%);

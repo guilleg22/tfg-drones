@@ -210,7 +210,8 @@ class LocalBackend:
 
             check()
             st("en_reparto", "aterrizando en cliente")
-            dron.Land(blocking=True)
+            dron.setFlightMode("LAND")
+            self._wait_until_landed(dron)
 
             st("en_reparto", "entrega (espera 10s)")
             time.sleep(10)
@@ -221,7 +222,8 @@ class LocalBackend:
             dron.goto(float(central["lat"]), float(central["lon"]), alt, blocking=True)
 
             st("en_reparto", "aterrizando en central")
-            dron.Land(blocking=True)
+            dron.setFlightMode("LAND")
+            self._wait_until_landed(dron)
 
             st("entregado", "entregado")
         except self._Cancelled:
@@ -253,6 +255,38 @@ class LocalBackend:
 
     def land(self):
         self._abort("LAND")     # aterriza donde está
+
+    def _wait_until_landed(self, dron, timeout=120):
+        """Espera a que el dron toque tierra sin depender de llegar a altitud 0.
+
+        En terreno elevado el dron aterriza a una altitud relativa > 0 (p. ej.
+        3 m), así que la condición de dronLink (relative_alt < 1 m) no se cumple
+        nunca. Aquí damos por aterrizado cuando los motores se desarman (lo que
+        ArduCopter hace al tocar tierra) o cuando la altitud deja de bajar.
+        """
+        import time
+        start = time.time()
+        last_alt, stable_since = None, None
+        while time.time() - start < timeout:
+            if self._cancelled:
+                raise self._Cancelled()
+            try:
+                if not dron.vehicle.motors_armed():
+                    return  # desarmado = en tierra
+            except Exception:  # noqa: BLE001
+                pass
+            with self._lock:
+                alt = self._latest.get("alt")
+            if alt is not None:
+                if last_alt is not None and abs(float(alt) - float(last_alt)) < 0.3:
+                    if stable_since is None:
+                        stable_since = time.time()
+                    elif time.time() - stable_since >= 6:
+                        return  # altitud estable 6 s = en tierra
+                else:
+                    stable_since = None
+                last_alt = alt
+            time.sleep(1)
 
     def _rearm_and_takeoff(self, alt):
         """Re-arma y despega para el retorno (mismo procedimiento que el escritorio)."""
