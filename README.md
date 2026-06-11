@@ -30,13 +30,15 @@ portal_cliente/    Estáticos del portal (HTML/JS/CSS) que sirve la webapp.
 negocio/ servicios/ modelos/ utils/   Lógica de negocio reutilizada (geocoder, rutas...).
 cliente/ widgets/ main.py             Aplicación de escritorio (PySide6).
 servidor/ DesktopLAN.py RaspiAutopilotLANService.py   Servicios de enlace con el dron.
-docs/swarm/        Documentación de diseño del enjambre (incluye deconflicción).
 tests/             Pruebas (pytest).
 ```
 
+El detalle de la simulación (función de costes, algoritmos, metodología y
+gráficas explicadas) está en [`INFORME_SIMULACION.md`](INFORME_SIMULACION.md).
+
 ## Cómo probarlo
 
-La guía detallada está en [`GUIA_PRUEBA.md`](GUIA_PRUEBA.md). En resumen:
+En resumen:
 
 ```bash
 # Simulación (Python 3.12)
