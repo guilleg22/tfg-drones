@@ -2,3 +2,5 @@ numpy
 scipy
 matplotlib
 pytest
+uvicorn
+PySide6>=6.5.0

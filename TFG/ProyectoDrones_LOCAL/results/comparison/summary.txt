@@ -1,0 +1,21 @@
+============================================================
+RESULTADOS: Greedy vs. Jonker-Volgenant
+============================================================
+Escenarios evaluados: 5
+
+── Energía Total (Wh) ──
+  Greedy:           384.95 Wh
+  JV (Costes):      389.02 Wh
+  Ahorro:       -1.06%
+  p-value:      0.1711 (no significativo)
+
+── Tiempo Total (s) ──
+  Greedy:          5715.27 s
+  JV (Costes):     5889.75 s
+  Ahorro:       -3.05%
+  p-value:      0.0931 (no significativo)
+
+── Pedidos Entregados ──
+  Greedy:       10.0
+  JV (Costes):  10.0
+============================================================

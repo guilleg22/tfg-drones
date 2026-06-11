@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirDrop Delivery</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Login View -->
+    <div id="login-view">
+        <h1>AirDrop</h1>
+        <p class="subtitle">Accede a la plataforma de envíos.</p>
+        
+        <form id="login-form" onsubmit="app.login(event)">
+            <div class="form-group">
+                <label>Nombre Completo</label>
+                <input type="text" id="login-name" required placeholder="Ej: Juan García">
+            </div>
+            <div class="form-group">
+                <label>Dirección</label>
+                <input type="text" id="login-address" required placeholder="Ej: Calle Mayor 10, Madrid">
+            </div>
+            <button type="submit" id="btn-login">Acceder</button>
+        </form>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="dashboard-view">
+        
+        <!-- Sidebar Left -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">AirDrop</div>
+                <button class="logout-btn" onclick="app.logout()">SALIR</button>
+            </div>
+            
+            <div class="sidebar-content">
+                <div style="margin-bottom: 24px;">
+                    <p style="font-size: 12px; color: var(--text-muted); text-transform: uppercase;">Cliente</p>
+                    <p style="font-weight: bold; font-size: 16px;" id="user-name">--</p>
+                </div>
+
+                <h2>Mis Pedidos</h2>
+                <button onclick="app.createNewOrder()" style="margin-bottom: 16px;">+ Solicitar Envío</button>
+
+                <div id="new-order-form" class="hidden" style="margin-bottom: 24px; border: 1px solid var(--panel-border); padding: 16px; background: #fafafa;">
+                    <label>Peso (KG)</label>
+                    <input type="number" id="order-weight" value="1.0" step="0.1" min="0.1" max="10" style="margin-bottom: 8px;">
+                    <button onclick="app.submitOrder()" style="margin-bottom: 8px;">Confirmar</button>
+                    <button class="secondary" onclick="document.getElementById('new-order-form').classList.add('hidden')">Cancelar</button>
+                </div>
+
+                <div class="orders-list" id="orders-list">
+                    <!-- Orders injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Container Right -->
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <!-- Floating Telemetry Overlay -->
+            <div class="telemetry-overlay" id="telemetry-overlay">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); padding-bottom: 8px;">
+                    <span style="font-size: 12px; font-weight: bold; text-transform: uppercase;">Estado del Dron</span>
+                    <span class="badge" id="track-status-badge">ESPERANDO</span>
+                </div>
+                <div class="tel-grid">
+                    <div class="tel-item">
+                        <span class="tel-lbl">Altitud</span>
+                        <span class="tel-val" id="tel-alt">--</span>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-lbl">Velocidad</span>
+                        <span class="tel-val" id="tel-spd">--</span>
+                    </div>
+                    <div class="tel-item">
+                        <span class="tel-lbl">Rumbo</span>
+                        <span class="tel-val" id="tel-hdg">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
