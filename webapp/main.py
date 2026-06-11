@@ -263,10 +263,18 @@ def admin_dispatch(order_id: int, _: str = Depends(require_admin)):
         return JSONResponse({"error": "El pedido no tiene ruta asignada"}, 400)
     try:
         mission = _build_mission(pname, rname)
-        drone.dispatch(mission, order_id=order_id)
+        # El backend va actualizando el estado del pedido durante el vuelo
+        # (en_reparto → … → entregado), de forma automática.
+        drone.dispatch(
+            mission, order_id=order_id,
+            client_lat=order.get("client_latitude"),
+            client_lon=order.get("client_longitude"),
+            on_state=lambda status, op: store.update_order(
+                order_id, status=status, operational_state=op),
+        )
     except Exception as e:
         return JSONResponse({"error": str(e)}, 400)
-    store.update_order(order_id, status="en_reparto", operational_state="yendo a cliente")
+    store.update_order(order_id, status="en_reparto", operational_state="iniciando")
     return {"success": True, "backend": drone.name}
 
 

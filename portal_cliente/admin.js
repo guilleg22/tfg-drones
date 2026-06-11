@@ -64,6 +64,10 @@ const admin = {
         if (!this.map) this.initMap();
         await this.loadProfiles();
         this.loadFleet();
+        // Telemetría del dron en vivo (en local). En cloud el backend es stub.
+        if (this.telInterval) clearInterval(this.telInterval);
+        this.pollTelemetry();
+        this.telInterval = setInterval(() => this.pollTelemetry(), 2000);
     },
 
     initMap() {
@@ -71,8 +75,32 @@ const admin = {
         L.tileLayer('https://mt0.google.com/vt/lyrs=s&hl=es&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(this.map);
         this.layer = L.layerGroup().addTo(this.map);
         this.draftLayer = L.layerGroup().addTo(this.map);  // ruta en construcción
+        this.droneMarker = L.marker([0, 0], {
+            icon: makeBadge('#00e5ff', DRONE_SVG, 34, true), zIndexOffset: 1000,
+        }).addTo(this.map);
+        this.droneMarker.setOpacity(0);
         this.map.on('click', (e) => this.onMapClick(e));
         setTimeout(() => this.map.invalidateSize(), 150);
+    },
+
+    async pollTelemetry() {
+        try {
+            const d = await fetch('/api/drone/telemetry').then(r => r.json());
+            const tel = d.telemetry || {};
+            const overlay = document.getElementById('admin-telemetry');
+            const hasFix = tel.lat != null && tel.lon != null;
+            const active = d.state && d.state !== 'idle';
+            overlay.classList.toggle('hidden', !active && !hasFix);
+            document.getElementById('admin-drone-state').innerText = d.state || '—';
+            if (hasFix) {
+                document.getElementById('adm-tel-alt').innerText = (tel.alt || 0).toFixed(1) + ' m';
+                document.getElementById('adm-tel-spd').innerText = (tel.groundSpeed || tel.speed || 0).toFixed(1) + ' m/s';
+                document.getElementById('adm-tel-hdg').innerText = (tel.heading || 0).toFixed(0) + '°';
+                this.droneMarker.setLatLng([tel.lat, tel.lon]).setOpacity(1);
+            } else {
+                this.droneMarker.setOpacity(0);
+            }
+        } catch (e) { /* sin telemetría */ }
     },
 
     // ── Perfiles ─────────────────────────────────────────────────────────
@@ -108,9 +136,14 @@ const admin = {
             (p.destinations || []).map((d, i) => row(d.name, `admin.removePoint('destination',${i})`)).join('')
             || '<li class="muted">—</li>';
         document.getElementById('routes-list').innerHTML =
-            (p.routes || []).map((r, i) =>
-                row(`${r.name} <small>(${r.parking}→${r.destination})</small>`, `admin.removeRoute(${i})`)).join('')
-            || '<li class="muted">—</li>';
+            (p.routes || []).map((r, i) => {
+                const n = (r.intermediates || []).length;
+                const meta = `${r.parking}→${r.destination}${n ? `, ${n} int.` : ''}`;
+                return `<li><span>${r.name} <small>(${meta})</small></span>`
+                    + `<span class="li-btns">`
+                    + `<button class="x" title="Editar waypoints" onclick="admin.editRoute(${i})">✎</button>`
+                    + `<button class="x" title="Borrar" onclick="admin.removeRoute(${i})">✕</button></span></li>`;
+            }).join('') || '<li class="muted">—</li>';
     },
 
     drawProfile() {
@@ -171,8 +204,8 @@ const admin = {
             else (p.destinations = p.destinations || []).push(pt);
         } else if (this.pick.type === 'intermediate') {
             this.routeDraft.intermediates.push({ lat, lon, alt: (p.hub && p.hub.alt) || 20 });
-            this.drawDraft();  // mostrar el intermedio recién añadido en el mapa
-            this.showBanner(`Ruta "${this.routeDraft.name}": ${this.routeDraft.intermediates.length} intermedio(s). Clic para más o pulsa Terminar.`, true);
+            this.drawDraft();          // muestra el intermedio en el mapa
+            this.renderRouteEditor();  // y en la lista del panel
             return; // sigue en modo intermedio
         }
         this.pick = null;
@@ -230,18 +263,58 @@ const admin = {
         });
         if (!r || !r.name || !r.parking || !r.destination) return;
         this.routeDraft = { name: r.name, parking: r.parking, destination: r.destination, intermediates: [] };
+        this.editing = false;   // ruta nueva (se añadirá al terminar)
         this.pick = { type: 'intermediate' };
         this.drawDraft();
-        this.showBanner(`Ruta "${r.name}": clic en el mapa para añadir intermedios (opcional).`, true);
+        this.renderRouteEditor();
+    },
+
+    // Editar una ruta ya guardada: se trabaja sobre el mismo objeto (por
+    // referencia), así que añadir/quitar intermedios la modifica in situ.
+    editRoute(i) {
+        this.routeDraft = this.profile.routes[i];
+        this.routeDraft.intermediates = this.routeDraft.intermediates || [];
+        this.editing = true;
+        this.pick = { type: 'intermediate' };
+        this.drawDraft();
+        this.renderRouteEditor();
+    },
+
+    renderRouteEditor() {
+        const dr = this.routeDraft;
+        const ed = document.getElementById('route-editor');
+        if (!dr) { ed.classList.add('hidden'); return; }
+        const items = dr.intermediates.map((it, i) =>
+            `<li><span>Intermedio ${i + 1}</span>`
+            + `<button class="x" title="Quitar" onclick="admin.removeIntermediate(${i})">✕</button></li>`).join('')
+            || '<li class="muted">Sin intermedios. Haz clic en el mapa para añadir.</li>';
+        ed.innerHTML = `<div class="re-title">${this.editing ? 'Editando' : 'Nueva ruta'}: `
+            + `<b>${dr.name}</b> <small>(${dr.parking}→${dr.destination})</small></div>`
+            + `<p class="re-hint">Haz clic en el mapa para añadir waypoints intermedios.</p>`
+            + `<ul class="edit-list">${items}</ul>`
+            + `<div class="re-actions"><button class="small" onclick="admin.finishRoute()">Hecho</button>`
+            + `<button class="secondary small" onclick="admin.cancelPick()">Cancelar</button></div>`;
+        ed.classList.remove('hidden');
+    },
+
+    removeIntermediate(i) {
+        if (!this.routeDraft) return;
+        this.routeDraft.intermediates.splice(i, 1);
+        this.drawDraft();
+        this.renderRouteEditor();
     },
 
     finishRoute() {
         if (!this.routeDraft) return;
-        (this.profile.routes = this.profile.routes || []).push(this.routeDraft);
+        // Si es nueva, se añade; si se editaba, ya estaba en la lista (referencia).
+        if (!this.editing) {
+            (this.profile.routes = this.profile.routes || []).push(this.routeDraft);
+        }
         this.routeDraft = null;
+        this.editing = false;
         this.pick = null;
         this.draftLayer.clearLayers();
-        this.hideBanner();
+        document.getElementById('route-editor').classList.add('hidden');
         this.renderProfile();
         this.drawProfile();
     },
@@ -255,7 +328,15 @@ const admin = {
         b.classList.remove('hidden');
     },
     hideBanner() { document.getElementById('pick-banner').classList.add('hidden'); },
-    cancelPick() { this.pick = null; this.routeDraft = null; this.draftLayer.clearLayers(); this.hideBanner(); },
+    cancelPick() {
+        this.pick = null;
+        this.routeDraft = null;
+        this.editing = false;
+        this.draftLayer.clearLayers();
+        this.hideBanner();
+        document.getElementById('route-editor').classList.add('hidden');
+        this.drawProfile();
+    },
 
     async saveProfiles() {
         if (this.profile) {
@@ -304,9 +385,7 @@ const admin = {
                         · <span class="badge ${o.status}">${o.status}</span></span>
                 </div>
                 <div class="order-actions" onclick="event.stopPropagation()">
-                    <button class="mini" title="Enviar al dron (local)" onclick="admin.dispatch(${o.id})">🛩</button>
-                    <button class="mini" title="En reparto" onclick="admin.setState(${o.id},'en_reparto','yendo a cliente')">▶</button>
-                    <button class="mini" title="Entregado" onclick="admin.setState(${o.id},'entregado','entregado')">✓</button>
+                    <button class="mini" title="Empezar misión" onclick="admin.dispatch(${o.id})">▶ Misión</button>
                     <button class="mini danger" title="Borrar" onclick="admin.deleteOrder(${o.id})">✕</button>
                 </div>
             </div>`).join('');
@@ -325,14 +404,6 @@ const admin = {
         this.map.fitBounds(ll, { padding: [50, 50], maxZoom: 16 });
     },
 
-    async setState(id, status, op) {
-        await fetch(`/api/admin/orders/${id}/state`, {
-            method: 'POST', headers: this.authHeaders(),
-            body: JSON.stringify({ status, operational_state: op }),
-        });
-        this.loadOrders();
-    },
-
     async deleteOrder(id) {
         if (!(await UI.confirm('¿Borrar el pedido #' + id + '?'))) return;
         await fetch(`/api/admin/orders/${id}`, { method: 'DELETE', headers: this.authHeaders() });
@@ -343,7 +414,8 @@ const admin = {
         const res = await fetch(`/api/admin/orders/${id}/dispatch`, { method: 'POST', headers: this.authHeaders() });
         const d = await res.json();
         if (d.error) return UI.alert(d.error, 'Error');
-        await UI.alert('Misión enviada al dron (backend: ' + (d.backend || '?') + ').', 'Despacho');
+        await UI.alert('Misión iniciada. El estado del pedido se actualizará solo '
+            + 'mientras el dron vuela.', 'Misión');
         this.loadOrders();
     },
 };

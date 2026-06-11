@@ -27,7 +27,7 @@ class StubBackend:
     def telemetry(self):
         return {"state": "idle", "telemetry": {}}
 
-    def dispatch(self, mission, order_id=None):
+    def dispatch(self, mission, order_id=None, client_lat=None, client_lon=None, on_state=None):
         raise RuntimeError("No hay dron en este backend (modo cloud).")
 
 
@@ -63,6 +63,7 @@ class LocalBackend:
         self._latest = {}
         self._lock = threading.Lock()
         self._connecting = False
+        self._busy = False  # hay una misión en curso
 
     # ── Conexión ─────────────────────────────────────────────────────────
     def _connection_string(self):
@@ -114,19 +115,118 @@ class LocalBackend:
             tel = dict(self._latest)
         return {"state": state, "telemetry": tel}
 
-    def dispatch(self, mission, order_id=None):
-        """Sube y ejecuta la misión en el dron (en segundo plano)."""
-        def _do():
-            try:
-                self._connect()
-                self._dron.uploadMission(mission, blocking=True)
+    def dispatch(self, mission, order_id=None, client_lat=None, client_lon=None, on_state=None):
+        """Ejecuta la entrega completa del pedido, punto a punto en GUIDED.
+
+        Replica la secuencia de la app de escritorio (que encadena varias
+        entregas sin problemas): despegue, ida por los waypoints de la ruta,
+        aterrizaje en el cliente, espera, re-armado y retorno a central. Va
+        actualizando el estado del pedido vía ``on_state(status, op)``.
+
+        Importante: NO usa uploadMission/executeMission (modo AUTO), que no se
+        reinicia limpio entre misiones; por eso la segunda no arrancaba.
+        """
+        if self._busy:
+            raise RuntimeError("El dron ya está ejecutando una misión.")
+        self._busy = True
+        threading.Thread(
+            target=self._run_delivery,
+            args=(mission, order_id, client_lat, client_lon, on_state),
+            daemon=True,
+        ).start()
+
+    def _run_delivery(self, mission, order_id, client_lat, client_lon, on_state):
+        import time
+
+        def st(status=None, op=None):
+            if on_state:
                 try:
-                    self._dron.executeMission(blocking=False, wait_until_finish=False)
-                except TypeError:
-                    self._dron.executeMission(blocking=False)
-            except Exception as e:  # noqa: BLE001
-                print(f"LocalBackend.dispatch (pedido {order_id}) error:", e)
-        threading.Thread(target=_do, daemon=True).start()
+                    on_state(status, op)
+                except Exception:  # noqa: BLE001
+                    pass
+
+        try:
+            from utils.constants import ORDER_TAKEOFF_ALT
+            alt = float(ORDER_TAKEOFF_ALT)
+            self._connect()
+            dron = self._dron
+            wps = mission.get("waypoints", [])
+            if not isinstance(wps, list) or len(wps) < 2:
+                raise ValueError("Ruta sin waypoints suficientes")
+            central, route_wps, dest = wps[0], wps[1:-1], wps[-1]
+
+            st("en_reparto", "despegando")
+            if getattr(dron, "state", None) != "flying":
+                dron.arm()
+                dron.takeOff(alt, blocking=True)
+
+            st("en_reparto", "yendo a central")
+            dron.goto(float(central["lat"]), float(central["lon"]), alt, blocking=True)
+
+            for idx, wp in enumerate(route_wps):
+                st("en_reparto", "en ruta (hub)" if idx == 0 else "en ruta")
+                dron.goto(float(wp["lat"]), float(wp["lon"]),
+                          float(wp.get("alt", alt)), blocking=True)
+
+            st("en_reparto", "llegando a destino")
+            dron.goto(float(dest["lat"]), float(dest["lon"]),
+                      float(dest.get("alt", alt)), blocking=True)
+
+            if client_lat is not None and client_lon is not None:
+                st("en_reparto", "yendo a cliente")
+                dron.goto(float(client_lat), float(client_lon), alt, blocking=True)
+
+            st("en_reparto", "aterrizando en cliente")
+            dron.Land(blocking=True)
+
+            st("en_reparto", "entrega (espera 10s)")
+            time.sleep(10)
+
+            st("en_reparto", "volviendo a central")
+            self._rearm_and_takeoff(alt)
+            dron.goto(float(central["lat"]), float(central["lon"]), alt, blocking=True)
+
+            st("en_reparto", "aterrizando en central")
+            dron.Land(blocking=True)
+
+            st("entregado", "entregado")
+        except Exception as e:  # noqa: BLE001
+            print(f"LocalBackend.dispatch (pedido {order_id}) error:", e)
+            st(None, "error")
+        finally:
+            self._busy = False
+
+    def _rearm_and_takeoff(self, alt):
+        """Re-arma y despega para el retorno (mismo procedimiento que el escritorio)."""
+        import time
+        dron = self._dron
+        armed = False
+        for _ in range(5):
+            try:
+                dron.vehicle.mav.command_long_send(
+                    dron.vehicle.target_system, dron.vehicle.target_component,
+                    400, 0, 0, 0, 0, 0, 0, 0, 0)
+                time.sleep(1)
+                dron.state = "connected"
+                dron.setFlightMode("GUIDED")
+                dron.vehicle.mav.command_long_send(
+                    dron.vehicle.target_system, dron.vehicle.target_component,
+                    400, 0, 1, 0, 0, 0, 0, 0, 0)
+                dron.vehicle.motors_armed_wait()
+                dron.state = "armed"
+                armed = True
+                break
+            except Exception:  # noqa: BLE001
+                time.sleep(2)
+        if not armed:
+            raise RuntimeError("No se pudo armar para el retorno")
+        for _ in range(2):
+            try:
+                dron._takeOff(alt)
+                return
+            except Exception:  # noqa: BLE001
+                time.sleep(1)
+        raise RuntimeError("Fallo en despegue para retorno")
 
 
 def get_backend():

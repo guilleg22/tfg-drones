@@ -74,6 +74,9 @@
                     <ul class="edit-list" id="routes-list"></ul>
                     <button class="secondary small" onclick="admin.startRouteCreation()">+ Crear ruta</button>
 
+                    <!-- Editor de waypoints intermedios de una ruta -->
+                    <div id="route-editor" class="route-editor hidden"></div>
+
                     <div class="save-bar">
                         <button onclick="admin.saveProfiles()">Guardar cambios</button>
                     </div>
@@ -95,6 +98,19 @@
         <div class="map-container">
             <div id="admin-map"></div>
             <div class="pick-banner hidden" id="pick-banner"></div>
+
+            <!-- Telemetría en vivo del dron (modo local) -->
+            <div class="telemetry-overlay hidden" id="admin-telemetry">
+                <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--panel-border);padding-bottom:8px;">
+                    <span style="font-size:12px;font-weight:bold;text-transform:uppercase;">Dron (SITL)</span>
+                    <span class="badge" id="admin-drone-state">—</span>
+                </div>
+                <div class="tel-grid">
+                    <div class="tel-item"><span class="tel-lbl">Altitud</span><span class="tel-val" id="adm-tel-alt">--</span></div>
+                    <div class="tel-item"><span class="tel-lbl">Velocidad</span><span class="tel-val" id="adm-tel-spd">--</span></div>
+                    <div class="tel-item"><span class="tel-lbl">Rumbo</span><span class="tel-val" id="adm-tel-hdg">--</span></div>
+                </div>
+            </div>
         </div>
     </div>
 
