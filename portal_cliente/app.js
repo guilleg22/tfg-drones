@@ -1,5 +1,14 @@
 const API_BASE = '/api';
 
+// Icono de dron (quadcopter visto desde arriba) en SVG, para el marcador de
+// telemetría. Trazo blanco para que se vea sobre el badge de color.
+const DRONE_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" '
+    + 'stroke="#fff" stroke-width="2" stroke-linecap="round">'
+    + '<line x1="7" y1="7" x2="17" y2="17"/><line x1="17" y1="7" x2="7" y2="17"/>'
+    + '<circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="6" r="2.6"/>'
+    + '<circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="18" r="2.6"/>'
+    + '<rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>';
+
 // Marcador circular grande con borde blanco, glifo y sombra, para que se
 // distinga bien sobre la imagen de satélite. glow añade un halo de color.
 function makeBadge(color, glyph, size = 28, glow = false) {
@@ -45,7 +54,7 @@ const app = {
 
         // Marcadores grandes y diferenciados: cliente (naranja) y dron (cian con halo).
         this.droneMarker = L.marker([0, 0], {
-            icon: makeBadge('#00e5ff', '✈', 32, true), zIndexOffset: 1000,
+            icon: makeBadge('#00e5ff', DRONE_SVG, 34, true), zIndexOffset: 1000,
         }).addTo(this.map);
         this.clientMarker = L.marker([0, 0], {
             icon: makeBadge('#ff7043', '⌂', 30), zIndexOffset: 900,
@@ -136,22 +145,49 @@ const app = {
     showDashboard() {
         document.getElementById('login-view').style.display = 'none';
         document.getElementById('dashboard-view').classList.add('active');
-        document.getElementById('user-name').innerText = this.client.name;
-
-        // Set client marker
-        this.clientMarker.setLatLng([this.client.latitude, this.client.longitude]);
-        this.clientMarker.setOpacity(1);
-        this.map.setView([this.client.latitude, this.client.longitude], 14);
+        this._renderClient();
 
         setTimeout(() => this.map.invalidateSize(), 100);
 
         this.fetchOrders();
-        
+
         if (this.pollInterval) clearInterval(this.pollInterval);
         this.pollInterval = setInterval(() => {
             this.fetchOrders();
             this.fetchTelemetry();
         }, 2000);
+    },
+
+    _renderClient() {
+        document.getElementById('user-name').innerText = this.client.name;
+        document.getElementById('user-address').innerText = this.client.address || '';
+        if (this.client.latitude != null && this.client.longitude != null) {
+            this.clientMarker.setLatLng([this.client.latitude, this.client.longitude]).setOpacity(1);
+            this.map.setView([this.client.latitude, this.client.longitude], 14);
+        }
+    },
+
+    async editAddress() {
+        const r = await UI.form({
+            title: 'Editar dirección',
+            fields: [{ name: 'address', label: 'Dirección', value: this.client.address || '' }],
+            submitLabel: 'Guardar',
+        });
+        if (!r || !r.address) return;
+        try {
+            const res = await fetch(`${API_BASE}/users/me`, {
+                method: 'PUT', headers: this.authHeaders(),
+                body: JSON.stringify({ address: r.address }),
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            this.client = data.client;
+            localStorage.setItem('drone_client', JSON.stringify(this.client));
+            this._renderClient();
+            this.fetchOrders();
+        } catch (err) {
+            UI.alert(err.message, 'Error');
+        }
     },
 
     createNewOrder() {

@@ -65,6 +65,20 @@
 
 button.small { width: auto; padding: 6px 12px; font-size: 11px; margin-top: 6px; }
 
+.li-btns { display: flex; gap: 4px; }
+
+/* Editor de waypoints de una ruta */
+.route-editor {
+  border: 1px solid var(--primary);
+  background: #fff8e1;
+  padding: 12px;
+  margin-top: 12px;
+}
+.route-editor .re-title { font-size: 13px; margin-bottom: 4px; }
+.route-editor .re-hint { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.route-editor .re-actions { display: flex; gap: 8px; margin-top: 8px; }
+.route-editor .re-actions button { margin-top: 0; }
+
 /* Listas editables */
 .edit-list { list-style: none; }
 .edit-list li {
@@ -88,6 +102,10 @@ button.small { width: auto; padding: 6px 12px; font-size: 11px; margin-top: 6px;
 .save-bar { margin-top: 20px; }
 .status-line { font-size: 12px; color: var(--success); margin-top: 8px; min-height: 16px; }
 
+/* Operaciones del dron */
+.ops-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ops-grid button { margin-top: 0; }
+
 /* Flota */
 .fleet-box { display: flex; flex-direction: column; gap: 6px; }
 .fleet-item { font-size: 13px; padding: 8px 10px; border: 1px solid var(--panel-border); background: #fafafa; }
@@ -107,6 +125,41 @@ button.mini.danger:hover { background: var(--danger); color: #fff; border-color:
 
 /* Mapa admin */
 #admin-map { width: 100%; height: 100%; background: #e0e0e0; }
+
+/* Monitor de dron (panel desplegable a la derecha) */
+.drone-monitor {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 240px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+}
+.dm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+}
+.dm-body { padding: 12px 14px; max-height: 60vh; overflow-y: auto; }
+.dm-drone-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.dm-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.dm-row span { color: var(--text-muted); }
+.dm-row b { font-family: 'Courier New', monospace; }
 
 .pick-banner {
   position: absolute;

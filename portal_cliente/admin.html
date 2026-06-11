@@ -40,6 +40,7 @@
             <div class="admin-tabs">
                 <button class="tab-btn active" data-tab="routes" onclick="admin.showTab('routes')">Rutas</button>
                 <button class="tab-btn" data-tab="orders" onclick="admin.showTab('orders')">Pedidos / Flota</button>
+                <button class="tab-btn" data-tab="accounts" onclick="admin.showTab('accounts')">Cuentas</button>
             </div>
 
             <div class="sidebar-content">
@@ -74,6 +75,9 @@
                     <ul class="edit-list" id="routes-list"></ul>
                     <button class="secondary small" onclick="admin.startRouteCreation()">+ Crear ruta</button>
 
+                    <!-- Editor de waypoints intermedios de una ruta -->
+                    <div id="route-editor" class="route-editor hidden"></div>
+
                     <div class="save-bar">
                         <button onclick="admin.saveProfiles()">Guardar cambios</button>
                     </div>
@@ -82,6 +86,16 @@
 
                 <!-- TAB PEDIDOS -->
                 <div id="tab-orders" class="tab-content">
+                    <div id="drone-ops-section" class="hidden">
+                        <h3>Operaciones del dron</h3>
+                        <div class="ops-grid">
+                            <button class="secondary small" onclick="admin.droneControl('cancel')">⏹ Cancelar</button>
+                            <button class="secondary small" onclick="admin.droneControl('hold')">⏸ Hold</button>
+                            <button class="secondary small" onclick="admin.droneControl('rtl')">⮌ RTL</button>
+                            <button class="secondary small" onclick="admin.droneControl('land')">⤓ Land</button>
+                        </div>
+                    </div>
+
                     <h3>Flota de referencia</h3>
                     <div id="fleet-box" class="fleet-box"></div>
 
@@ -89,12 +103,36 @@
                     <button class="secondary small" onclick="admin.loadOrders()">Actualizar</button>
                     <div class="orders-list" id="admin-orders-list"></div>
                 </div>
+
+                <!-- TAB CUENTAS -->
+                <div id="tab-accounts" class="tab-content">
+                    <h3>Cuentas de cliente</h3>
+                    <button class="secondary small" onclick="admin.loadAccounts()">Actualizar</button>
+                    <ul class="edit-list" id="accounts-list"></ul>
+                </div>
             </div>
         </div>
 
         <div class="map-container">
             <div id="admin-map"></div>
             <div class="pick-banner hidden" id="pick-banner"></div>
+
+            <!-- Monitor de dron: panel desplegable a la derecha (solo en local) -->
+            <div class="drone-monitor hidden" id="drone-monitor">
+                <div class="dm-header" onclick="admin.toggleMonitor()">
+                    <span>Monitor de dron</span>
+                    <span id="dm-toggle">▸</span>
+                </div>
+                <div class="dm-body hidden" id="dm-body">
+                    <div class="dm-drone">
+                        <div class="dm-drone-head">
+                            <b>Dron SITL</b>
+                            <span class="badge" id="dm-state">—</span>
+                        </div>
+                        <div class="dm-rows" id="dm-rows"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

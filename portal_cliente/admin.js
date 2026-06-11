@@ -62,8 +62,29 @@ const admin = {
         document.getElementById('admin-login-view').style.display = 'none';
         document.getElementById('admin-panel-view').classList.add('active');
         if (!this.map) this.initMap();
+        // ¿Hay dron conectado (modo local) o estamos en cloud (stub)?
+        try {
+            const t = await fetch('/api/drone/telemetry').then(r => r.json());
+            this.hasDrone = t.backend === 'local';
+        } catch (e) { this.hasDrone = false; }
+        this.applyDroneMode();
         await this.loadProfiles();
         this.loadFleet();
+        // Telemetría en vivo solo si hay dron (en cloud no aporta nada).
+        if (this.telInterval) clearInterval(this.telInterval);
+        if (this.hasDrone) {
+            this.pollTelemetry();
+            this.telInterval = setInterval(() => this.pollTelemetry(), 2000);
+        }
+    },
+
+    // Oculta los controles específicos del dron cuando no hay conexión (cloud).
+    applyDroneMode() {
+        const show = !!this.hasDrone;
+        const mon = document.getElementById('drone-monitor');
+        const ops = document.getElementById('drone-ops-section');
+        if (mon) mon.classList.toggle('hidden', !show);
+        if (ops) ops.classList.toggle('hidden', !show);
     },
 
     initMap() {
@@ -71,8 +92,46 @@ const admin = {
         L.tileLayer('https://mt0.google.com/vt/lyrs=s&hl=es&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(this.map);
         this.layer = L.layerGroup().addTo(this.map);
         this.draftLayer = L.layerGroup().addTo(this.map);  // ruta en construcción
+        this.droneMarker = L.marker([0, 0], {
+            icon: makeBadge('#00e5ff', DRONE_SVG, 34, true), zIndexOffset: 1000,
+        }).addTo(this.map);
+        this.droneMarker.setOpacity(0);
         this.map.on('click', (e) => this.onMapClick(e));
         setTimeout(() => this.map.invalidateSize(), 150);
+    },
+
+    toggleMonitor() {
+        const body = document.getElementById('dm-body');
+        const open = body.classList.toggle('hidden') === false;
+        document.getElementById('dm-toggle').innerText = open ? '▾' : '▸';
+    },
+
+    async pollTelemetry() {
+        try {
+            const d = await fetch('/api/drone/telemetry').then(r => r.json());
+            const tel = d.telemetry || {};
+            const hasFix = tel.lat != null && tel.lon != null;
+
+            document.getElementById('dm-state').innerText = d.state || '—';
+            const fmt = (v, dec, unit) => (v == null ? '—' : Number(v).toFixed(dec) + (unit || ''));
+            document.getElementById('dm-rows').innerHTML =
+                this._dmRow('Modo de vuelo', tel.flightMode || '—')
+                + this._dmRow('Latitud', tel.lat != null ? Number(tel.lat).toFixed(6) : '—')
+                + this._dmRow('Longitud', tel.lon != null ? Number(tel.lon).toFixed(6) : '—')
+                + this._dmRow('Altitud', fmt(tel.alt, 1, ' m'))
+                + this._dmRow('Velocidad', fmt(tel.groundSpeed != null ? tel.groundSpeed : tel.speed, 1, ' m/s'))
+                + this._dmRow('Rumbo', fmt(tel.heading, 0, '°'));
+
+            if (hasFix) {
+                this.droneMarker.setLatLng([tel.lat, tel.lon]).setOpacity(1);
+            } else {
+                this.droneMarker.setOpacity(0);
+            }
+        } catch (e) { /* sin telemetría */ }
+    },
+
+    _dmRow(label, value) {
+        return `<div class="dm-row"><span>${label}</span><b>${value}</b></div>`;
     },
 
     // ── Perfiles ─────────────────────────────────────────────────────────
@@ -108,9 +167,14 @@ const admin = {
             (p.destinations || []).map((d, i) => row(d.name, `admin.removePoint('destination',${i})`)).join('')
             || '<li class="muted">—</li>';
         document.getElementById('routes-list').innerHTML =
-            (p.routes || []).map((r, i) =>
-                row(`${r.name} <small>(${r.parking}→${r.destination})</small>`, `admin.removeRoute(${i})`)).join('')
-            || '<li class="muted">—</li>';
+            (p.routes || []).map((r, i) => {
+                const n = (r.intermediates || []).length;
+                const meta = `${r.parking}→${r.destination}${n ? `, ${n} int.` : ''}`;
+                return `<li><span>${r.name} <small>(${meta})</small></span>`
+                    + `<span class="li-btns">`
+                    + `<button class="x" title="Editar waypoints" onclick="admin.editRoute(${i})">✎</button>`
+                    + `<button class="x" title="Borrar" onclick="admin.removeRoute(${i})">✕</button></span></li>`;
+            }).join('') || '<li class="muted">—</li>';
     },
 
     drawProfile() {
@@ -171,8 +235,8 @@ const admin = {
             else (p.destinations = p.destinations || []).push(pt);
         } else if (this.pick.type === 'intermediate') {
             this.routeDraft.intermediates.push({ lat, lon, alt: (p.hub && p.hub.alt) || 20 });
-            this.drawDraft();  // mostrar el intermedio recién añadido en el mapa
-            this.showBanner(`Ruta "${this.routeDraft.name}": ${this.routeDraft.intermediates.length} intermedio(s). Clic para más o pulsa Terminar.`, true);
+            this.drawDraft();          // muestra el intermedio en el mapa
+            this.renderRouteEditor();  // y en la lista del panel
             return; // sigue en modo intermedio
         }
         this.pick = null;
@@ -230,18 +294,58 @@ const admin = {
         });
         if (!r || !r.name || !r.parking || !r.destination) return;
         this.routeDraft = { name: r.name, parking: r.parking, destination: r.destination, intermediates: [] };
+        this.editing = false;   // ruta nueva (se añadirá al terminar)
         this.pick = { type: 'intermediate' };
         this.drawDraft();
-        this.showBanner(`Ruta "${r.name}": clic en el mapa para añadir intermedios (opcional).`, true);
+        this.renderRouteEditor();
+    },
+
+    // Editar una ruta ya guardada: se trabaja sobre el mismo objeto (por
+    // referencia), así que añadir/quitar intermedios la modifica in situ.
+    editRoute(i) {
+        this.routeDraft = this.profile.routes[i];
+        this.routeDraft.intermediates = this.routeDraft.intermediates || [];
+        this.editing = true;
+        this.pick = { type: 'intermediate' };
+        this.drawDraft();
+        this.renderRouteEditor();
+    },
+
+    renderRouteEditor() {
+        const dr = this.routeDraft;
+        const ed = document.getElementById('route-editor');
+        if (!dr) { ed.classList.add('hidden'); return; }
+        const items = dr.intermediates.map((it, i) =>
+            `<li><span>Intermedio ${i + 1}</span>`
+            + `<button class="x" title="Quitar" onclick="admin.removeIntermediate(${i})">✕</button></li>`).join('')
+            || '<li class="muted">Sin intermedios. Haz clic en el mapa para añadir.</li>';
+        ed.innerHTML = `<div class="re-title">${this.editing ? 'Editando' : 'Nueva ruta'}: `
+            + `<b>${dr.name}</b> <small>(${dr.parking}→${dr.destination})</small></div>`
+            + `<p class="re-hint">Haz clic en el mapa para añadir waypoints intermedios.</p>`
+            + `<ul class="edit-list">${items}</ul>`
+            + `<div class="re-actions"><button class="small" onclick="admin.finishRoute()">Hecho</button>`
+            + `<button class="secondary small" onclick="admin.cancelPick()">Cancelar</button></div>`;
+        ed.classList.remove('hidden');
+    },
+
+    removeIntermediate(i) {
+        if (!this.routeDraft) return;
+        this.routeDraft.intermediates.splice(i, 1);
+        this.drawDraft();
+        this.renderRouteEditor();
     },
 
     finishRoute() {
         if (!this.routeDraft) return;
-        (this.profile.routes = this.profile.routes || []).push(this.routeDraft);
+        // Si es nueva, se añade; si se editaba, ya estaba en la lista (referencia).
+        if (!this.editing) {
+            (this.profile.routes = this.profile.routes || []).push(this.routeDraft);
+        }
         this.routeDraft = null;
+        this.editing = false;
         this.pick = null;
         this.draftLayer.clearLayers();
-        this.hideBanner();
+        document.getElementById('route-editor').classList.add('hidden');
         this.renderProfile();
         this.drawProfile();
     },
@@ -255,7 +359,15 @@ const admin = {
         b.classList.remove('hidden');
     },
     hideBanner() { document.getElementById('pick-banner').classList.add('hidden'); },
-    cancelPick() { this.pick = null; this.routeDraft = null; this.draftLayer.clearLayers(); this.hideBanner(); },
+    cancelPick() {
+        this.pick = null;
+        this.routeDraft = null;
+        this.editing = false;
+        this.draftLayer.clearLayers();
+        this.hideBanner();
+        document.getElementById('route-editor').classList.add('hidden');
+        this.drawProfile();
+    },
 
     async saveProfiles() {
         if (this.profile) {
@@ -273,10 +385,41 @@ const admin = {
     // ── Pedidos / flota ──────────────────────────────────────────────────
     showTab(tab) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-        document.getElementById('tab-routes').classList.toggle('active', tab === 'routes');
-        document.getElementById('tab-orders').classList.toggle('active', tab === 'orders');
+        ['routes', 'orders', 'accounts'].forEach(t =>
+            document.getElementById('tab-' + t).classList.toggle('active', t === tab));
         if (tab === 'orders') this.loadOrders();
         if (tab === 'routes') this.drawProfile();
+        if (tab === 'accounts') this.loadAccounts();
+    },
+
+    async loadAccounts() {
+        const res = await fetch('/api/admin/clients', { headers: this.authHeaders() });
+        if (res.status === 401) return this.logout();
+        const d = await res.json();
+        const list = document.getElementById('accounts-list');
+        if (!d.clients || !d.clients.length) { list.innerHTML = '<li class="muted">Sin cuentas.</li>'; return; }
+        list.innerHTML = d.clients.map(c =>
+            `<li><span>${c.name}<br><small class="muted">${c.address}</small></span>`
+            + `<button class="x" title="Editar" onclick='admin.editClient(${c.id}, ${JSON.stringify(c.name)}, ${JSON.stringify(c.address)})'>✎</button></li>`).join('');
+    },
+
+    async editClient(id, name, address) {
+        const r = await UI.form({
+            title: 'Editar cuenta',
+            fields: [
+                { name: 'name', label: 'Nombre', value: name },
+                { name: 'address', label: 'Dirección', value: address },
+            ],
+            submitLabel: 'Guardar',
+        });
+        if (!r) return;
+        const res = await fetch(`/api/admin/clients/${id}`, {
+            method: 'PUT', headers: this.authHeaders(),
+            body: JSON.stringify({ name: r.name, address: r.address }),
+        });
+        const d = await res.json();
+        if (d.error) return UI.alert(d.error, 'Error');
+        this.loadAccounts();
     },
 
     async loadFleet() {
@@ -304,11 +447,21 @@ const admin = {
                         · <span class="badge ${o.status}">${o.status}</span></span>
                 </div>
                 <div class="order-actions" onclick="event.stopPropagation()">
-                    <button class="mini" title="En reparto" onclick="admin.setState(${o.id},'en_reparto','yendo a cliente')">▶</button>
-                    <button class="mini" title="Entregado" onclick="admin.setState(${o.id},'entregado','entregado')">✓</button>
+                    ${this.hasDrone
+                        ? `<button class="mini" title="Empezar misión" onclick="admin.dispatch(${o.id})">▶ Misión</button>`
+                        : `<button class="mini" title="Marcar en reparto" onclick="admin.setState(${o.id},'en_reparto','en reparto')">▶</button>`
+                          + `<button class="mini" title="Marcar entregado" onclick="admin.setState(${o.id},'entregado','entregado')">✓</button>`}
                     <button class="mini danger" title="Borrar" onclick="admin.deleteOrder(${o.id})">✕</button>
                 </div>
             </div>`).join('');
+    },
+
+    async setState(id, status, op) {
+        await fetch(`/api/admin/orders/${id}/state`, {
+            method: 'POST', headers: this.authHeaders(),
+            body: JSON.stringify({ status, operational_state: op }),
+        });
+        this.loadOrders();
     },
 
     showOrderRoute(id) {
@@ -324,18 +477,29 @@ const admin = {
         this.map.fitBounds(ll, { padding: [50, 50], maxZoom: 16 });
     },
 
-    async setState(id, status, op) {
-        await fetch(`/api/admin/orders/${id}/state`, {
-            method: 'POST', headers: this.authHeaders(),
-            body: JSON.stringify({ status, operational_state: op }),
-        });
-        this.loadOrders();
-    },
-
     async deleteOrder(id) {
         if (!(await UI.confirm('¿Borrar el pedido #' + id + '?'))) return;
         await fetch(`/api/admin/orders/${id}`, { method: 'DELETE', headers: this.authHeaders() });
         this.loadOrders();
+    },
+
+    async dispatch(id) {
+        const res = await fetch(`/api/admin/orders/${id}/dispatch`, { method: 'POST', headers: this.authHeaders() });
+        const d = await res.json();
+        if (d.error) return UI.alert(d.error, 'Error');
+        await UI.alert('Misión iniciada. El estado del pedido se actualizará solo '
+            + 'mientras el dron vuela.', 'Misión');
+        this.loadOrders();
+    },
+
+    async droneControl(action) {
+        const labels = { cancel: 'Cancelar misión', hold: 'Mantener posición',
+            rtl: 'Volver a base (RTL)', land: 'Aterrizar' };
+        if (!(await UI.confirm(labels[action] + '?', 'Operación del dron'))) return;
+        const res = await fetch(`/api/admin/drone/${action}`, { method: 'POST', headers: this.authHeaders() });
+        const d = await res.json();
+        if (d.error) return UI.alert(d.error, 'Error');
+        await UI.alert('Orden enviada: ' + labels[action] + '.', 'Operación');
     },
 };
 
