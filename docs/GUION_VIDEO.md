@@ -31,11 +31,14 @@ simulación reproducible en el repo y el diseño de deconflicción en marcha.
 ## 3 · La simulación del algoritmo (60 s)
 
 - Ejecutar `python -m experiments.run compare --n-scenarios 200 --seed 42`.
-- Abrir `results/comparison/`: enseñar `summary.txt` (métricas + test
-  estadístico sobre 200 escenarios) y las gráficas `comparison_bars.png` /
-  `comparison_boxplots.png` y `cost_heatmap.png`.
-- Explicar en una frase qué compara: asignación greedy vs. matriz de costes
-  (Jonker-Volgenant) sobre energía, tiempo y entregas.
+- Abrir `results/comparison/`: enseñar `summary.txt` (tasa de entrega, energía
+  por pedido y makespan, con test estadístico sobre 200 escenarios), la gráfica
+  `comparison_bars.png` y, sobre todo, `crossover.png`.
+- Explicar la idea en una frase: en una oleada de despacho con escasez (baterías
+  limitadas, paquetes pesados), la asignación global por matriz de costes
+  (Jonker-Volgenant) entrega **~35 % más pedidos** con **~31 % menos energía por
+  entrega** que el greedy FIFO; la curva de cruce muestra que la ventaja aparece
+  justo cuando la demanda supera la capacidad de la flota.
 
 ## 4 · Deconflicción (40 s)
 

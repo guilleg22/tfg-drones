@@ -57,11 +57,22 @@ Experimento principal, reproducible (semilla fija) con 200 escenarios:
 python -m experiments.run compare --n-scenarios 200 --seed 42
 ```
 
+La comparación se hace en el régimen donde la asignación importa: una **oleada de
+despacho** (ciclo único, sin recarga) con baterías limitadas y paquetes pesados,
+de modo que la demanda supera la capacidad de la flota. Ahí la asignación global
+(Jonker-Volgenant) se distingue del greedy FIFO. Resultado esperado: JV entrega
+**~+35 % más pedidos** (≈47 % vs ≈35 % de tasa de entrega, p < 0.0001) con **~−31 %
+de energía por pedido entregado**.
+
 Genera en `results/comparison/`:
 
-- `summary.txt` — métricas de energía, tiempo y entregas, con test estadístico.
+- `summary.txt` — tasa de entrega, energía por pedido entregado y makespan, con
+  test t pareado.
 - `comparison.tex` — tabla LaTeX lista para la memoria.
-- `comparison_bars.png`, `comparison_boxplots.png`, `cost_heatmap.png`.
+- `comparison_bars.png` — barras de las tres métricas.
+- `crossover.png` — **curva de cruce**: cómo se separa JV del greedy a medida que
+  crece la demanda (la clave del experimento).
+- `comparison_boxplots.png`, `cost_heatmap.png`.
 
 ### 2.3 Otros experimentos (opcionales)
 
