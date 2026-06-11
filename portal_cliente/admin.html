@@ -85,6 +85,14 @@
 
                 <!-- TAB PEDIDOS -->
                 <div id="tab-orders" class="tab-content">
+                    <h3>Operaciones del dron</h3>
+                    <div class="ops-grid">
+                        <button class="secondary small" onclick="admin.droneControl('cancel')">⏹ Cancelar</button>
+                        <button class="secondary small" onclick="admin.droneControl('hold')">⏸ Hold</button>
+                        <button class="secondary small" onclick="admin.droneControl('rtl')">⮌ RTL</button>
+                        <button class="secondary small" onclick="admin.droneControl('land')">⤓ Land</button>
+                    </div>
+
                     <h3>Flota de referencia</h3>
                     <div id="fleet-box" class="fleet-box"></div>
 

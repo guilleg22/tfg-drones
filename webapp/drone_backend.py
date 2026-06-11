@@ -30,6 +30,18 @@ class StubBackend:
     def dispatch(self, mission, order_id=None, client_lat=None, client_lon=None, on_state=None):
         raise RuntimeError("No hay dron en este backend (modo cloud).")
 
+    def cancel(self):
+        raise RuntimeError("No hay dron en este backend (modo cloud).")
+
+    def rtl(self):
+        raise RuntimeError("No hay dron en este backend (modo cloud).")
+
+    def hold(self):
+        raise RuntimeError("No hay dron en este backend (modo cloud).")
+
+    def land(self):
+        raise RuntimeError("No hay dron en este backend (modo cloud).")
+
 
 def _add_dronlink_to_path():
     """Localiza la carpeta que contiene el paquete 'dronLink' y la añade a sys.path.
@@ -62,8 +74,10 @@ class LocalBackend:
         self._dron = None
         self._latest = {}
         self._lock = threading.Lock()
+        self._conn_lock = threading.Lock()  # serializa la conexión
         self._connecting = False
-        self._busy = False  # hay una misión en curso
+        self._busy = False        # hay una misión en curso
+        self._cancelled = False   # se ha pedido abortar la misión
 
     # ── Conexión ─────────────────────────────────────────────────────────
     def _connection_string(self):
@@ -76,18 +90,22 @@ class LocalBackend:
 
     def _connect(self):
         from utils.constants import BAUD
-        if self._dron is None:
-            if not _add_dronlink_to_path():
-                raise RuntimeError(
-                    "No se encontró dronLink. Define DRONLINK_PATH apuntando a la "
-                    "carpeta que contiene 'dronLink' (ProyectoDeDrones).")
-            from dronLink.Dron import Dron
-            self._dron = Dron()
-        if getattr(self._dron, "state", "disconnected") in ("connected", "flying", "returning", "landing"):
-            return
-        self._dron.connect(self._connection_string(), BAUD, freq=10)
-        # Telemetría continua: dronLink invoca el callback en su propio hilo.
-        self._dron.send_telemetry_info(self._on_telemetry)
+        # Un único connect a la vez: si la telemetría y el despacho intentan
+        # conectar en paralelo, dos connect simultáneos corrompen la conexión
+        # (el dron arma pero el despegue no llega). El lock lo evita.
+        with self._conn_lock:
+            if self._dron is None:
+                if not _add_dronlink_to_path():
+                    raise RuntimeError(
+                        "No se encontró dronLink. Define DRONLINK_PATH apuntando a la "
+                        "carpeta que contiene 'dronLink' (ProyectoDeDrones).")
+                from dronLink.Dron import Dron
+                self._dron = Dron()
+            if getattr(self._dron, "state", "disconnected") in ("connected", "flying", "returning", "landing"):
+                return
+            self._dron.connect(self._connection_string(), BAUD, freq=10)
+            # Telemetría continua: dronLink invoca el callback en su propio hilo.
+            self._dron.send_telemetry_info(self._on_telemetry)
 
     def _on_telemetry(self, info):
         with self._lock:
@@ -129,21 +147,30 @@ class LocalBackend:
         if self._busy:
             raise RuntimeError("El dron ya está ejecutando una misión.")
         self._busy = True
+        self._cancelled = False
         threading.Thread(
             target=self._run_delivery,
             args=(mission, order_id, client_lat, client_lon, on_state),
             daemon=True,
         ).start()
 
+    class _Cancelled(Exception):
+        pass
+
     def _run_delivery(self, mission, order_id, client_lat, client_lon, on_state):
         import time
 
         def st(status=None, op=None):
+            print(f"[pedido {order_id}] {op or status}")
             if on_state:
                 try:
                     on_state(status, op)
                 except Exception:  # noqa: BLE001
                     pass
+
+        def check():
+            if self._cancelled:
+                raise self._Cancelled()
 
         try:
             from utils.constants import ORDER_TAKEOFF_ALT
@@ -155,33 +182,40 @@ class LocalBackend:
                 raise ValueError("Ruta sin waypoints suficientes")
             central, route_wps, dest = wps[0], wps[1:-1], wps[-1]
 
+            check()
             st("en_reparto", "despegando")
             if getattr(dron, "state", None) != "flying":
                 dron.arm()
                 dron.takeOff(alt, blocking=True)
 
+            check()
             st("en_reparto", "yendo a central")
             dron.goto(float(central["lat"]), float(central["lon"]), alt, blocking=True)
 
             for idx, wp in enumerate(route_wps):
+                check()
                 st("en_reparto", "en ruta (hub)" if idx == 0 else "en ruta")
                 dron.goto(float(wp["lat"]), float(wp["lon"]),
                           float(wp.get("alt", alt)), blocking=True)
 
+            check()
             st("en_reparto", "llegando a destino")
             dron.goto(float(dest["lat"]), float(dest["lon"]),
                       float(dest.get("alt", alt)), blocking=True)
 
             if client_lat is not None and client_lon is not None:
+                check()
                 st("en_reparto", "yendo a cliente")
                 dron.goto(float(client_lat), float(client_lon), alt, blocking=True)
 
+            check()
             st("en_reparto", "aterrizando en cliente")
             dron.Land(blocking=True)
 
             st("en_reparto", "entrega (espera 10s)")
             time.sleep(10)
 
+            check()
             st("en_reparto", "volviendo a central")
             self._rearm_and_takeoff(alt)
             dron.goto(float(central["lat"]), float(central["lon"]), alt, blocking=True)
@@ -190,11 +224,35 @@ class LocalBackend:
             dron.Land(blocking=True)
 
             st("entregado", "entregado")
+        except self._Cancelled:
+            print(f"[pedido {order_id}] operación cancelada")
+            st(None, "cancelado")
         except Exception as e:  # noqa: BLE001
             print(f"LocalBackend.dispatch (pedido {order_id}) error:", e)
             st(None, "error")
         finally:
             self._busy = False
+
+    # ── Controles de seguridad ───────────────────────────────────────────
+    def _abort(self, mode):
+        """Interrumpe la misión en curso y pone el dron en el modo indicado."""
+        self._cancelled = True
+        self._busy = False
+        if self._dron is None:
+            raise RuntimeError("El dron no está conectado.")
+        self._dron.setFlightMode(mode)
+
+    def cancel(self):
+        self._abort("LOITER")   # detiene la misión y mantiene posición
+
+    def rtl(self):
+        self._abort("RTL")      # vuelve al punto de despegue
+
+    def hold(self):
+        self._abort("LOITER")   # mantiene posición (hover)
+
+    def land(self):
+        self._abort("LAND")     # aterriza donde está
 
     def _rearm_and_takeoff(self, alt):
         """Re-arma y despega para el retorno (mismo procedimiento que el escritorio)."""

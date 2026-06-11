@@ -278,6 +278,20 @@ def admin_dispatch(order_id: int, _: str = Depends(require_admin)):
     return {"success": True, "backend": drone.name}
 
 
+@app.post("/api/admin/drone/{action}")
+def admin_drone_control(action: str, _: str = Depends(require_admin)):
+    """Controles de seguridad del dron: cancel | rtl | hold | land."""
+    fn = {"cancel": drone.cancel, "rtl": drone.rtl,
+          "hold": drone.hold, "land": drone.land}.get(action)
+    if fn is None:
+        return JSONResponse({"error": "Acción no válida"}, 400)
+    try:
+        fn()
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 400)
+    return {"success": True}
+
+
 @app.get("/api/admin/clients")
 def admin_clients(_: str = Depends(require_admin)):
     return {"clients": store.list_clients()}

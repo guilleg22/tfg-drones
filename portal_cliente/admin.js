@@ -418,6 +418,16 @@ const admin = {
             + 'mientras el dron vuela.', 'Misión');
         this.loadOrders();
     },
+
+    async droneControl(action) {
+        const labels = { cancel: 'Cancelar misión', hold: 'Mantener posición',
+            rtl: 'Volver a base (RTL)', land: 'Aterrizar' };
+        if (!(await UI.confirm(labels[action] + '?', 'Operación del dron'))) return;
+        const res = await fetch(`/api/admin/drone/${action}`, { method: 'POST', headers: this.authHeaders() });
+        const d = await res.json();
+        if (d.error) return UI.alert(d.error, 'Error');
+        await UI.alert('Orden enviada: ' + labels[action] + '.', 'Operación');
+    },
 };
 
 window.addEventListener('load', () => {
