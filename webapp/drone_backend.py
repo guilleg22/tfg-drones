@@ -25,7 +25,7 @@ class StubBackend:
     name = "stub"
 
     def telemetry(self):
-        return {"state": "idle", "telemetry": {}}
+        return {"state": "idle", "telemetry": {}, "backend": self.name}
 
     def dispatch(self, mission, order_id=None, client_lat=None, client_lon=None, on_state=None):
         raise RuntimeError("No hay dron en este backend (modo cloud).")
@@ -131,7 +131,7 @@ class LocalBackend:
         state = getattr(self._dron, "state", None) or ("connecting" if self._connecting else "idle")
         with self._lock:
             tel = dict(self._latest)
-        return {"state": state, "telemetry": tel}
+        return {"state": state, "telemetry": tel, "backend": self.name}
 
     def dispatch(self, mission, order_id=None, client_lat=None, client_lon=None, on_state=None):
         """Ejecuta la entrega completa del pedido, punto a punto en GUIDED.

@@ -86,12 +86,14 @@
 
                 <!-- TAB PEDIDOS -->
                 <div id="tab-orders" class="tab-content">
-                    <h3>Operaciones del dron</h3>
-                    <div class="ops-grid">
-                        <button class="secondary small" onclick="admin.droneControl('cancel')">⏹ Cancelar</button>
-                        <button class="secondary small" onclick="admin.droneControl('hold')">⏸ Hold</button>
-                        <button class="secondary small" onclick="admin.droneControl('rtl')">⮌ RTL</button>
-                        <button class="secondary small" onclick="admin.droneControl('land')">⤓ Land</button>
+                    <div id="drone-ops-section" class="hidden">
+                        <h3>Operaciones del dron</h3>
+                        <div class="ops-grid">
+                            <button class="secondary small" onclick="admin.droneControl('cancel')">⏹ Cancelar</button>
+                            <button class="secondary small" onclick="admin.droneControl('hold')">⏸ Hold</button>
+                            <button class="secondary small" onclick="admin.droneControl('rtl')">⮌ RTL</button>
+                            <button class="secondary small" onclick="admin.droneControl('land')">⤓ Land</button>
+                        </div>
                     </div>
 
                     <h3>Flota de referencia</h3>
@@ -115,8 +117,8 @@
             <div id="admin-map"></div>
             <div class="pick-banner hidden" id="pick-banner"></div>
 
-            <!-- Monitor de dron: panel desplegable a la derecha -->
-            <div class="drone-monitor" id="drone-monitor">
+            <!-- Monitor de dron: panel desplegable a la derecha (solo en local) -->
+            <div class="drone-monitor hidden" id="drone-monitor">
                 <div class="dm-header" onclick="admin.toggleMonitor()">
                     <span>Monitor de dron</span>
                     <span id="dm-toggle">▸</span>

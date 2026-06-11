@@ -62,12 +62,29 @@ const admin = {
         document.getElementById('admin-login-view').style.display = 'none';
         document.getElementById('admin-panel-view').classList.add('active');
         if (!this.map) this.initMap();
+        // ¿Hay dron conectado (modo local) o estamos en cloud (stub)?
+        try {
+            const t = await fetch('/api/drone/telemetry').then(r => r.json());
+            this.hasDrone = t.backend === 'local';
+        } catch (e) { this.hasDrone = false; }
+        this.applyDroneMode();
         await this.loadProfiles();
         this.loadFleet();
-        // Telemetría del dron en vivo (en local). En cloud el backend es stub.
+        // Telemetría en vivo solo si hay dron (en cloud no aporta nada).
         if (this.telInterval) clearInterval(this.telInterval);
-        this.pollTelemetry();
-        this.telInterval = setInterval(() => this.pollTelemetry(), 2000);
+        if (this.hasDrone) {
+            this.pollTelemetry();
+            this.telInterval = setInterval(() => this.pollTelemetry(), 2000);
+        }
+    },
+
+    // Oculta los controles específicos del dron cuando no hay conexión (cloud).
+    applyDroneMode() {
+        const show = !!this.hasDrone;
+        const mon = document.getElementById('drone-monitor');
+        const ops = document.getElementById('drone-ops-section');
+        if (mon) mon.classList.toggle('hidden', !show);
+        if (ops) ops.classList.toggle('hidden', !show);
     },
 
     initMap() {
@@ -430,10 +447,21 @@ const admin = {
                         · <span class="badge ${o.status}">${o.status}</span></span>
                 </div>
                 <div class="order-actions" onclick="event.stopPropagation()">
-                    <button class="mini" title="Empezar misión" onclick="admin.dispatch(${o.id})">▶ Misión</button>
+                    ${this.hasDrone
+                        ? `<button class="mini" title="Empezar misión" onclick="admin.dispatch(${o.id})">▶ Misión</button>`
+                        : `<button class="mini" title="Marcar en reparto" onclick="admin.setState(${o.id},'en_reparto','en reparto')">▶</button>`
+                          + `<button class="mini" title="Marcar entregado" onclick="admin.setState(${o.id},'entregado','entregado')">✓</button>`}
                     <button class="mini danger" title="Borrar" onclick="admin.deleteOrder(${o.id})">✕</button>
                 </div>
             </div>`).join('');
+    },
+
+    async setState(id, status, op) {
+        await fetch(`/api/admin/orders/${id}/state`, {
+            method: 'POST', headers: this.authHeaders(),
+            body: JSON.stringify({ status, operational_state: op }),
+        });
+        this.loadOrders();
     },
 
     showOrderRoute(id) {
