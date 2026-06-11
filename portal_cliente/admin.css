@@ -1,0 +1,119 @@
+/* Estilos del panel de administración (complementan style.css) */
+
+#admin-login-view {
+  max-width: 400px;
+  margin: 15vh auto;
+  background: var(--panel-bg);
+  padding: 32px;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+#admin-panel-view {
+  display: none;
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+}
+#admin-panel-view.active { display: flex; }
+
+.admin-sidebar { width: 380px; }
+
+/* Pestañas */
+.admin-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--panel-border);
+}
+.tab-btn {
+  flex: 1;
+  width: auto;
+  background: #fafafa;
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px;
+}
+.tab-btn:hover { background: #f0f0f0; color: var(--text-main); }
+.tab-btn.active {
+  background: #fff;
+  color: var(--primary);
+  border-bottom: 2px solid var(--primary);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.tab-content h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 20px 0 8px;
+  color: var(--text-main);
+}
+
+/* Campos de perfil */
+#profile-select { width: 100%; padding: 10px; border: 1px solid var(--panel-border); font-size: 14px; margin-bottom: 12px; }
+.profile-fields { display: flex; gap: 12px; margin-bottom: 12px; }
+.profile-fields > div { flex: 1; }
+
+.hub-line {
+  font-size: 13px;
+  color: var(--warning);
+  background: #fff8e1;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+button.small { width: auto; padding: 6px 12px; font-size: 11px; margin-top: 6px; }
+
+/* Listas editables */
+.edit-list { list-style: none; }
+.edit-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  margin-bottom: 4px;
+  font-size: 13px;
+  background: #fafafa;
+}
+.edit-list li.muted { color: var(--text-muted); justify-content: flex-start; background: transparent; border: none; }
+.edit-list small { color: var(--text-muted); }
+.edit-list button.x {
+  width: auto; padding: 2px 7px; font-size: 12px;
+  background: transparent; color: var(--danger); border: 1px solid var(--panel-border);
+}
+.edit-list button.x:hover { background: var(--danger); color: #fff; }
+
+.save-bar { margin-top: 20px; }
+.status-line { font-size: 12px; color: var(--success); margin-top: 8px; min-height: 16px; }
+
+/* Flota */
+.fleet-box { display: flex; flex-direction: column; gap: 6px; }
+.fleet-item { font-size: 13px; padding: 8px 10px; border: 1px solid var(--panel-border); background: #fafafa; }
+.muted { color: var(--text-muted); }
+
+/* Pedidos admin */
+.admin-order { cursor: pointer; }
+.admin-order:hover { background: #f0f0f0; }
+.order-actions { display: flex; gap: 6px; margin-top: 8px; }
+button.mini {
+  width: auto; flex: 1; padding: 6px; font-size: 13px;
+  background: #fff; color: var(--text-main); border: 1px solid var(--panel-border);
+}
+button.mini:hover { background: var(--primary); color: #fff; }
+button.mini.danger { color: var(--danger); }
+button.mini.danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+/* Mapa admin */
+#admin-map { width: 100%; height: 100%; background: #e0e0e0; }
+
+.pick-banner {
+  position: absolute;
+  top: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(20,20,20,0.9); color: #fff;
+  padding: 10px 16px; font-size: 13px; z-index: 1000;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.pick-banner button { width: auto; padding: 4px 10px; font-size: 11px; background: #fff; color: #000; border: none; }

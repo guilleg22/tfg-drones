@@ -250,4 +250,8 @@ const app = {
     }
 };
 
-window.onload = () => app.init();
+// Solo arranca el portal de cliente si su mapa está en la página (en admin.html
+// no existe, allí se reutiliza makeBadge pero no este init).
+window.addEventListener('load', () => {
+    if (document.getElementById('map')) app.init();
+});
