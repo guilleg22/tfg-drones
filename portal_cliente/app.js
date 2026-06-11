@@ -1,12 +1,29 @@
 const API_BASE = '/api';
 
+// Marcador circular grande con borde blanco, glifo y sombra, para que se
+// distinga bien sobre la imagen de satélite. glow añade un halo de color.
+function makeBadge(color, glyph, size = 28, glow = false) {
+    const shadow = glow
+        ? `0 0 8px ${color}, 0 0 16px ${color}, 0 2px 5px rgba(0,0,0,.55)`
+        : `0 2px 5px rgba(0,0,0,.55)`;
+    return L.divIcon({
+        className: '',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;`
+            + `background:${color};border:3px solid #fff;box-shadow:${shadow};`
+            + `display:flex;align-items:center;justify-content:center;color:#fff;`
+            + `font-size:${Math.round(size * 0.5)}px;line-height:1;font-weight:700;">${glyph}</div>`,
+    });
+}
+
 const app = {
     client: null,
     orders: [],
     map: null,
     droneMarker: null,
     clientMarker: null,
-    routePolyline: null,
+    routeLayer: null,
     pollInterval: null,
 
     init() {
@@ -15,30 +32,26 @@ const app = {
             zoomControl: false,
             attributionControl: false
         }).setView([40.4168, -3.7038], 12);
-        
-        L.tileLayer('http://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}', {
+
+        // Teselas de satélite por HTTPS (en http:// el navegador las bloquea
+        // como contenido mixto al servir la web por https).
+        L.tileLayer('https://mt0.google.com/vt/lyrs=s&hl=es&x={x}&y={y}&z={z}', {
             maxZoom: 20
         }).addTo(this.map);
 
-        // Custom markers
-        const droneIcon = L.divIcon({
-            html: '<div style="background:#64b5f6;width:12px;height:12px;border-radius:50%;box-shadow:0 0 10px #64b5f6, 0 0 20px #64b5f6;"></div>',
-            className: '',
-            iconSize: [12, 12],
-            iconAnchor: [6, 6]
-        });
-        
-        const clientIcon = L.divIcon({
-            html: '<div style="background:#ba68c8;width:12px;height:12px;border-radius:50%;box-shadow:0 0 10px #ba68c8;"></div>',
-            className: '',
-            iconSize: [12, 12],
-            iconAnchor: [6, 6]
-        });
+        // Capa donde se dibuja la ruta (línea + puntos clave) para poder limpiarla.
+        this.routeLayer = L.layerGroup().addTo(this.map);
 
-        this.droneMarker = L.marker([0,0], {icon: droneIcon}).addTo(this.map);
-        this.clientMarker = L.marker([0,0], {icon: clientIcon}).addTo(this.map);
+        // Marcadores grandes y diferenciados: cliente (naranja) y dron (cian con halo).
+        this.droneMarker = L.marker([0, 0], {
+            icon: makeBadge('#00e5ff', '✈', 32, true), zIndexOffset: 1000,
+        }).addTo(this.map);
+        this.clientMarker = L.marker([0, 0], {
+            icon: makeBadge('#ff7043', '⌂', 30), zIndexOffset: 900,
+        }).addTo(this.map);
         this.droneMarker.setOpacity(0);
         this.clientMarker.setOpacity(0);
+        this.clientMarker.bindTooltip('Cliente', { direction: 'top', offset: [0, -16] });
 
         // Check stored login
         const stored = localStorage.getItem('drone_client');
@@ -180,22 +193,38 @@ const app = {
             badge.className = "badge en_reparto";
             
             if (active.route_waypoints && active.route_waypoints.length > 0) {
-                const latlngs = active.route_waypoints.map(wp => [wp.lat, wp.lon]);
-                if (this.routePolyline) {
-                    this.routePolyline.setLatLngs(latlngs);
-                } else {
-                    this.routePolyline = L.polyline(latlngs, {color: '#ba68c8', weight: 4, opacity: 0.7, dashArray: '5, 10'}).addTo(this.map);
-                }
+                this.drawRoute(active.route_waypoints);
             }
         } else {
             badge.innerText = "Sin actividad";
             badge.className = "badge";
             this.droneMarker.setOpacity(0);
-            if (this.routePolyline) {
-                this.map.removeLayer(this.routePolyline);
-                this.routePolyline = null;
-            }
+            this.routeLayer.clearLayers();
         }
+    },
+
+    // Dibuja la ruta del pedido activo: corredor parking→hub→…→destino y el
+    // último tramo destino→cliente, con puntos clave grandes y diferenciados.
+    drawRoute(waypoints) {
+        this.routeLayer.clearLayers();
+        const ll = waypoints.map(wp => [wp.lat, wp.lon]);
+        if (ll.length < 2) return;
+
+        // Casing blanco debajo para que la línea resalte sobre el satélite.
+        L.polyline(ll, { color: '#ffffff', weight: 8, opacity: 0.9 }).addTo(this.routeLayer);
+        // Corredor (todo menos el último tramo al cliente) en cian sólido.
+        L.polyline(ll.slice(0, -1), { color: '#00bcd4', weight: 5, opacity: 1 }).addTo(this.routeLayer);
+        // Último tramo destino→cliente, discontinuo en naranja.
+        L.polyline(ll.slice(-2), { color: '#ff7043', weight: 5, opacity: 1, dashArray: '6, 8' }).addTo(this.routeLayer);
+
+        const mark = (pos, color, glyph, label) => {
+            L.marker(pos, { icon: makeBadge(color, glyph, 24) })
+                .addTo(this.routeLayer)
+                .bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -12], className: 'wp-label' });
+        };
+        mark(ll[0], '#43a047', 'P', 'Parking');                 // origen
+        if (ll.length > 3) mark(ll[1], '#fbc02d', 'H', 'HUB');  // hub
+        mark(ll[ll.length - 2], '#e53935', '◆', 'Destino');     // destino (antes del cliente)
     },
 
     async fetchTelemetry() {

@@ -270,5 +270,18 @@ button:disabled {
   text-transform: uppercase;
 }
 
+/* Etiquetas de los puntos clave de la ruta (Parking/HUB/Destino) */
+.wp-label {
+  background: rgba(20, 20, 20, 0.82);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.wp-label::before { display: none; }
+
 /* Utility */
 .hidden { display: none !important; }
