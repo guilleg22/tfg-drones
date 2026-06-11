@@ -47,7 +47,7 @@ const admin = {
             this.needsSetup = false;
             this.enterPanel();
         } catch (err) {
-            alert('Error: ' + err.message);
+            UI.alert(err.message, 'Error');
         }
     },
 
@@ -70,6 +70,7 @@ const admin = {
         this.map = L.map('admin-map', { attributionControl: false }).setView([41.283, 1.985], 15);
         L.tileLayer('https://mt0.google.com/vt/lyrs=s&hl=es&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(this.map);
         this.layer = L.layerGroup().addTo(this.map);
+        this.draftLayer = L.layerGroup().addTo(this.map);  // ruta en construcción
         this.map.on('click', (e) => this.onMapClick(e));
         setTimeout(() => this.map.invalidateSize(), 150);
     },
@@ -147,11 +148,15 @@ const admin = {
         this.showBanner(type === 'hub' ? 'Haz clic en el mapa para fijar el HUB.' : 'Haz clic en el mapa.');
     },
 
-    addPointPrompt(kind) {
-        const name = prompt(kind === 'parking' ? 'Nombre del parking:' : 'Nombre del destino:');
-        if (!name) return;
-        this.pick = { type: 'point', kind, name };
-        this.showBanner(`Haz clic en el mapa para colocar "${name}".`);
+    async addPointPrompt(kind) {
+        const r = await UI.form({
+            title: kind === 'parking' ? 'Nuevo parking' : 'Nuevo destino',
+            fields: [{ name: 'name', label: 'Nombre' }],
+            submitLabel: 'Continuar',
+        });
+        if (!r || !r.name) return;
+        this.pick = { type: 'point', kind, name: r.name };
+        this.showBanner(`Haz clic en el mapa para colocar "${r.name}".`);
     },
 
     onMapClick(e) {
@@ -166,6 +171,7 @@ const admin = {
             else (p.destinations = p.destinations || []).push(pt);
         } else if (this.pick.type === 'intermediate') {
             this.routeDraft.intermediates.push({ lat, lon, alt: (p.hub && p.hub.alt) || 20 });
+            this.drawDraft();  // mostrar el intermedio recién añadido en el mapa
             this.showBanner(`Ruta "${this.routeDraft.name}": ${this.routeDraft.intermediates.length} intermedio(s). Clic para más o pulsa Terminar.`, true);
             return; // sigue en modo intermedio
         }
@@ -173,6 +179,26 @@ const admin = {
         this.hideBanner();
         this.renderProfile();
         this.drawProfile();
+    },
+
+    // Dibuja la ruta que se está creando (naranja discontinua) con sus
+    // intermedios numerados, en una capa aparte para no tocar lo ya guardado.
+    drawDraft() {
+        if (!this.draftLayer) return;
+        this.draftLayer.clearLayers();
+        const p = this.profile, dr = this.routeDraft;
+        if (!dr) return;
+        const pk = (p.parkings || []).find(x => x.name === dr.parking);
+        const d = (p.destinations || []).find(x => x.name === dr.destination);
+        if (!pk || !d) return;
+        const pts = [[pk.lat, pk.lon]];
+        if (p.hub) pts.push([p.hub.lat, p.hub.lon]);
+        dr.intermediates.forEach(it => pts.push([it.lat, it.lon]));
+        pts.push([d.lat, d.lon]);
+        L.polyline(pts, { color: '#ff9800', weight: 4, opacity: 0.95, dashArray: '6, 8' }).addTo(this.draftLayer);
+        dr.intermediates.forEach((it, i) => {
+            L.marker([it.lat, it.lon], { icon: makeBadge('#ff9800', String(i + 1), 22) }).addTo(this.draftLayer);
+        });
     },
 
     removePoint(kind, i) {
@@ -189,21 +215,24 @@ const admin = {
     },
 
     // ── Creación de ruta ─────────────────────────────────────────────────
-    startRouteCreation() {
+    async startRouteCreation() {
         const p = this.profile;
         if (!(p.parkings || []).length || !(p.destinations || []).length)
-            return alert('Define al menos un parking y un destino primero.');
-        const name = prompt('Nombre de la ruta:');
-        if (!name) return;
-        const parking = p.parkings.length === 1 ? p.parkings[0].name
-            : prompt('Parking (' + p.parkings.map(x => x.name).join(', ') + '):', p.parkings[0].name);
-        const destination = prompt('Destino (' + p.destinations.map(x => x.name).join(', ') + '):', p.destinations[0].name);
-        if (!parking || !destination) return;
-        if (!p.parkings.find(x => x.name === parking) || !p.destinations.find(x => x.name === destination))
-            return alert('Parking o destino inexistente.');
-        this.routeDraft = { name, parking, destination, intermediates: [] };
+            return UI.alert('Define al menos un parking y un destino primero.');
+        const r = await UI.form({
+            title: 'Crear ruta',
+            fields: [
+                { name: 'name', label: 'Nombre de la ruta' },
+                { name: 'parking', label: 'Parking', type: 'select', options: p.parkings.map(x => x.name), value: p.parkings[0].name },
+                { name: 'destination', label: 'Destino', type: 'select', options: p.destinations.map(x => x.name), value: p.destinations[0].name },
+            ],
+            submitLabel: 'Continuar',
+        });
+        if (!r || !r.name || !r.parking || !r.destination) return;
+        this.routeDraft = { name: r.name, parking: r.parking, destination: r.destination, intermediates: [] };
         this.pick = { type: 'intermediate' };
-        this.showBanner(`Ruta "${name}": clic en el mapa para añadir intermedios (opcional).`, true);
+        this.drawDraft();
+        this.showBanner(`Ruta "${r.name}": clic en el mapa para añadir intermedios (opcional).`, true);
     },
 
     finishRoute() {
@@ -211,6 +240,7 @@ const admin = {
         (this.profile.routes = this.profile.routes || []).push(this.routeDraft);
         this.routeDraft = null;
         this.pick = null;
+        this.draftLayer.clearLayers();
         this.hideBanner();
         this.renderProfile();
         this.drawProfile();
@@ -225,7 +255,7 @@ const admin = {
         b.classList.remove('hidden');
     },
     hideBanner() { document.getElementById('pick-banner').classList.add('hidden'); },
-    cancelPick() { this.pick = null; this.routeDraft = null; this.hideBanner(); },
+    cancelPick() { this.pick = null; this.routeDraft = null; this.draftLayer.clearLayers(); this.hideBanner(); },
 
     async saveProfiles() {
         if (this.profile) {
@@ -303,7 +333,7 @@ const admin = {
     },
 
     async deleteOrder(id) {
-        if (!confirm('¿Borrar el pedido #' + id + '?')) return;
+        if (!(await UI.confirm('¿Borrar el pedido #' + id + '?'))) return;
         await fetch(`/api/admin/orders/${id}`, { method: 'DELETE', headers: this.authHeaders() });
         this.loadOrders();
     },

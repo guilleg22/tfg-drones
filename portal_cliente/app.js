@@ -19,6 +19,7 @@ function makeBadge(color, glyph, size = 28, glow = false) {
 
 const app = {
     client: null,
+    token: null,
     orders: [],
     map: null,
     droneMarker: null,
@@ -53,9 +54,10 @@ const app = {
         this.clientMarker.setOpacity(0);
         this.clientMarker.bindTooltip('Cliente', { direction: 'top', offset: [0, -16] });
 
-        // Check stored login
+        // Sesión guardada (token + cliente)
+        this.token = localStorage.getItem('drone_token');
         const stored = localStorage.getItem('drone_client');
-        if (stored) {
+        if (this.token && stored) {
             try {
                 this.client = JSON.parse(stored);
                 this.showDashboard();
@@ -63,41 +65,70 @@ const app = {
         }
     },
 
-    async login(e) {
-        e.preventDefault();
-        const btn = document.getElementById('btn-login');
-        const name = document.getElementById('login-name').value;
-        const address = document.getElementById('login-address').value;
-        
-        btn.disabled = true;
-        btn.innerText = "Geocodificando...";
+    authHeaders() {
+        return { 'Authorization': 'Bearer ' + this.token, 'Content-Type': 'application/json' };
+    },
 
+    toggleAuth(e) {
+        e.preventDefault();
+        const login = document.getElementById('login-form');
+        const reg = document.getElementById('register-form');
+        const toReg = login.classList.contains('hidden') === false;
+        login.classList.toggle('hidden', toReg);
+        reg.classList.toggle('hidden', !toReg);
+        document.getElementById('auth-subtitle').innerText = toReg ? 'Crea tu cuenta.' : 'Accede a tu cuenta.';
+        document.getElementById('toggle-auth').innerText = toReg ? '¿Ya tienes cuenta? Entrar' : '¿No tienes cuenta? Crear una';
+    },
+
+    async _authRequest(endpoint, body, btn, busyText) {
+        const original = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = busyText;
         try {
-            const res = await fetch(`${API_BASE}/clients/login`, {
+            const res = await fetch(`${API_BASE}${endpoint}`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name, address})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
             });
             const data = await res.json();
-            
             if (data.error) throw new Error(data.error);
-            
+            this.token = data.token;
             this.client = data.client;
+            localStorage.setItem('drone_token', this.token);
             localStorage.setItem('drone_client', JSON.stringify(this.client));
             this.showDashboard();
         } catch (err) {
-            alert("Error: " + err.message);
+            UI.alert(err.message, 'Error');
         } finally {
             btn.disabled = false;
-            btn.innerText = "Acceder";
+            btn.innerText = original;
         }
     },
 
+    login(e) {
+        e.preventDefault();
+        this._authRequest('/users/login', {
+            username: document.getElementById('login-user').value,
+            password: document.getElementById('login-pass').value,
+        }, document.getElementById('btn-login'), 'Entrando...');
+    },
+
+    register(e) {
+        e.preventDefault();
+        this._authRequest('/users/register', {
+            username: document.getElementById('reg-user').value,
+            password: document.getElementById('reg-pass').value,
+            name: document.getElementById('reg-name').value,
+            address: document.getElementById('reg-address').value,
+        }, document.getElementById('btn-register'), 'Creando cuenta...');
+    },
+
     logout() {
+        localStorage.removeItem('drone_token');
         localStorage.removeItem('drone_client');
         this.client = null;
+        this.token = null;
         if (this.pollInterval) clearInterval(this.pollInterval);
-        document.getElementById('nav-user') && (document.getElementById('nav-user').style.display = 'none');
         document.getElementById('dashboard-view').classList.remove('active');
         document.getElementById('login-view').style.display = 'block';
     },
@@ -132,25 +163,23 @@ const app = {
         try {
             const res = await fetch(`${API_BASE}/orders`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    client_id: this.client.id,
-                    weight_kg: weight
-                })
+                headers: this.authHeaders(),
+                body: JSON.stringify({ weight_kg: weight }),
             });
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-            
+
             document.getElementById('new-order-form').classList.add('hidden');
             this.fetchOrders();
         } catch (err) {
-            alert("Error al crear pedido: " + err.message);
+            UI.alert(err.message, 'Error al crear pedido');
         }
     },
 
     async fetchOrders() {
         try {
-            const res = await fetch(`${API_BASE}/orders?client_id=${this.client.id}`);
+            const res = await fetch(`${API_BASE}/orders`, { headers: this.authHeaders() });
+            if (res.status === 401) return this.logout();
             const data = await res.json();
             if (data.orders) {
                 this.orders = data.orders;

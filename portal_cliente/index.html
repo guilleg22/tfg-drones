@@ -9,23 +9,47 @@
 </head>
 <body>
 
-    <!-- Login View -->
+    <!-- Login / Registro -->
     <div id="login-view">
         <h1>AirDrop</h1>
-        <p class="subtitle">Accede a la plataforma de envíos.</p>
-        
+        <p class="subtitle" id="auth-subtitle">Accede a tu cuenta.</p>
+
         <form id="login-form" onsubmit="app.login(event)">
             <div class="form-group">
-                <label>Nombre Completo</label>
-                <input type="text" id="login-name" required placeholder="Ej: Juan García">
+                <label>Usuario</label>
+                <input type="text" id="login-user" required placeholder="tu usuario">
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="login-pass" required placeholder="••••••••">
+            </div>
+            <button type="submit" id="btn-login">Entrar</button>
+        </form>
+
+        <form id="register-form" class="hidden" onsubmit="app.register(event)">
+            <div class="form-group">
+                <label>Nombre completo</label>
+                <input type="text" id="reg-name" required placeholder="Ej: Juan García">
             </div>
             <div class="form-group">
                 <label>Dirección</label>
-                <input type="text" id="login-address" required placeholder="Ej: Calle Mayor 10, Madrid">
+                <input type="text" id="reg-address" required placeholder="Ej: Carrer Major, Castelldefels">
             </div>
-            <button type="submit" id="btn-login">Acceder</button>
+            <div class="form-group">
+                <label>Usuario</label>
+                <input type="text" id="reg-user" required placeholder="elige un usuario">
+            </div>
+            <div class="form-group">
+                <label>Contraseña (6+ caracteres)</label>
+                <input type="password" id="reg-pass" required placeholder="••••••••">
+            </div>
+            <button type="submit" id="btn-register">Crear cuenta</button>
         </form>
-        <p style="margin-top:16px;font-size:12px;color:var(--text-muted);">
+
+        <p style="margin-top:16px;font-size:13px;">
+            <a href="#" id="toggle-auth" onclick="app.toggleAuth(event)">¿No tienes cuenta? Crear una</a>
+        </p>
+        <p style="margin-top:8px;font-size:12px;color:var(--text-muted);">
             <a href="/admin.html" style="color:var(--text-muted);">Acceso administración</a>
         </p>
     </div>
@@ -92,6 +116,7 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="ui.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

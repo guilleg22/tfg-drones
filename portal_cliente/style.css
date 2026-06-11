@@ -62,7 +62,7 @@ label {
   color: var(--text-muted);
 }
 
-input[type="text"], input[type="number"] {
+input[type="text"], input[type="number"], input[type="password"] {
   width: 100%;
   background: #fff;
   border: 1px solid var(--panel-border);
@@ -282,6 +282,43 @@ button:disabled {
   box-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 .wp-label::before { display: none; }
+
+/* Modales propios (ui.js) */
+.ui-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+.ui-modal {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  padding: 24px;
+  width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+}
+.ui-modal h3 {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+.ui-msg { font-size: 14px; color: var(--text-main); margin-bottom: 20px; }
+.ui-modal select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--panel-border);
+  font-size: 14px;
+}
+.ui-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.ui-actions button { flex: 1; }
 
 /* Utility */
 .hidden { display: none !important; }
