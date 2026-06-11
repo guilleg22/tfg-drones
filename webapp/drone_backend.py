@@ -188,8 +188,7 @@ class LocalBackend:
             check()
             st("en_reparto", "despegando")
             if getattr(dron, "state", None) != "flying":
-                dron.arm()
-                dron.takeOff(alt, blocking=True)
+                self._arm_and_takeoff(alt)
 
             check()
             st("en_reparto", "yendo a central")
@@ -221,7 +220,7 @@ class LocalBackend:
 
             check()
             st("en_reparto", "volviendo a central")
-            self._rearm_and_takeoff(alt)
+            self._arm_and_takeoff(alt)
             dron.goto(float(central["lat"]), float(central["lon"]), alt, blocking=True)
 
             st("en_reparto", "aterrizando en central")
@@ -291,13 +290,23 @@ class LocalBackend:
                 last_alt = alt
             time.sleep(1)
 
-    def _rearm_and_takeoff(self, alt):
-        """Re-arma y despega para el retorno (mismo procedimiento que el escritorio)."""
+    def _arm_and_takeoff(self, alt):
+        """Arma y despega de forma robusta, sin depender de ``dron.state``.
+
+        El gate de dronLink (``takeOff`` solo despega si ``state == 'armed'``) se
+        rompe por una carrera: justo tras armar, el hilo de telemetría puede
+        procesar un heartbeat de 'desarmado' que aún quedaba en el buffer y
+        ``_handle_heartbeat`` revierte ``state`` a 'connected'; entonces
+        ``takeOff`` ve ``state != 'armed'`` y no despega (el dron se queda armado
+        y se auto-desarma). Aquí armamos por bajo nivel y llamamos directamente a
+        ``_takeOff`` (que no comprueba ``state``), reintentando.
+        """
         import time
         dron = self._dron
         armed = False
         for _ in range(5):
             try:
+                # desarma por si venía de un estado intermedio, deja GUIDED y arma
                 dron.vehicle.mav.command_long_send(
                     dron.vehicle.target_system, dron.vehicle.target_component,
                     400, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -314,14 +323,15 @@ class LocalBackend:
             except Exception:  # noqa: BLE001
                 time.sleep(2)
         if not armed:
-            raise RuntimeError("No se pudo armar para el retorno")
+            raise RuntimeError("No se pudo armar el dron")
         for _ in range(2):
             try:
-                dron._takeOff(alt)
+                dron.state = "armed"   # reasegura el estado por si un heartbeat lo pisó
+                dron._takeOff(alt)     # despegue directo, sin el gate de state
                 return
             except Exception:  # noqa: BLE001
                 time.sleep(1)
-        raise RuntimeError("Fallo en despegue para retorno")
+        raise RuntimeError("Fallo en el despegue")
 
 
 def get_backend():
