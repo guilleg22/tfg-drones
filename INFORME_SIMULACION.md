@@ -131,15 +131,30 @@ pedidos a la vez, **evita las trampas de la decisión voraz**.
 
 ## 5. Metodología experimental
 
-El punto clave del experimento es **en qué régimen se compara**. Si la flota tiene
-capacidad de sobra, cualquier estrategia entrega todos los pedidos y las dos
-empatan; eso no distingue los algoritmos.
+### 5.1 Qué es un "ciclo de despacho"
 
-Por eso comparo en una **oleada de despacho con escasez**: un único ciclo de
-reparto, sin recarga intermedia, con baterías limitadas (50–90 %) y paquetes
-pesados (2–4 kg), de modo que la demanda supera la capacidad disponible. Es un
-escenario operativo realista (una tanda de pedidos con la flota tal como está) y es
-donde la asignación importa de verdad.
+Un **ciclo de despacho** es **una sola tanda de reparto**: la flota arranca con la
+batería que tiene en ese momento, sale, entrega todos los pedidos que pueda y
+vuelve a la base **una única vez, sin recargar por el camino**. Es el equivalente a
+"un turno" o "una oleada" de reparto.
+
+La distinción importa porque cambia el resultado:
+
+- Si permito **recarga ilimitada entre tandas**, la flota acaba entregando *todos*
+  los pedidos tarde o temprano y las dos estrategias empatan: la asignación da
+  igual porque siempre hay un dron disponible al que esperar.
+- Si me limito a **un solo ciclo** (la flota tal como está, sin parar a recargar),
+  la **batería disponible es un recurso escaso**: hay que decidir bien a qué dron
+  va cada pedido, porque un mal reparto deja pedidos sin servir en esa tanda.
+
+El segundo caso es el realista para evaluar la *calidad de la asignación*, y es el
+que uso.
+
+### 5.2 Régimen de la comparación
+
+Comparo en una **oleada de despacho con escasez**: un único ciclo (definido arriba),
+con baterías limitadas (50–90 %) y paquetes pesados (2–4 kg), de modo que la demanda
+supera la capacidad disponible en esa tanda. Es donde la asignación importa de verdad.
 
 - **Escenarios:** 200, generados con semilla fija (reproducibles).
 - **Métricas** (las que distinguen a los algoritmos bajo escasez):
@@ -201,19 +216,51 @@ afortunado: se mantienen sobre la distribución de los 200 casos.
 
 ## 7. Optimización de los pesos de la función de costes
 
-Los pesos `w1..w4` se pueden ajustar para un objetivo concreto (minimizar energía o
-makespan). He implementado varios optimizadores que buscan los mejores pesos sobre
-un conjunto de escenarios (`simulacion/optimizer_*.py`), accesibles desde la misma
-CLI:
+Los pesos `w1..w5` no tienen por qué valer todos 1: se pueden **ajustar** para un
+objetivo concreto. Para encontrar los mejores pesos he implementado varios
+optimizadores (`simulacion/optimizer_*.py`), accesibles desde la misma CLI:
 
-- **Algoritmo Genético** y **Monte Carlo** (implementación propia): búsqueda de los
-  pesos que minimizan el objetivo.
-- **NSGA-II** (multiobjetivo): frente de Pareto energía–tiempo.
-- **Optimización bayesiana** y un **baseline MILP** exacto de makespan, como
-  referencias.
+- **Monte Carlo (MC)**: prueba muchas combinaciones de pesos al azar y se queda con
+  la mejor.
+- **Algoritmo Genético (GA)**: evoluciona una población de combinaciones de pesos
+  (selección, cruce y mutación) hacia las que mejor rinden.
+- **NSGA-II** (multiobjetivo, frente de Pareto energía–tiempo) y un **baseline MILP**
+  exacto, como referencias adicionales.
 
-Esto deja la función de costes como una pieza ajustable, no como una heurística
-fija: el mismo marco permite estudiar qué término gobierna cada métrica.
+El objetivo está **normalizado** de modo que **1.0 = rendimiento de los pesos
+neutros** (todos a 1); por tanto, valores **por debajo de 1.0 son mejoras**.
+
+### 7.1 Resultados de la optimización
+
+Ejecutando MC y GA sobre el mismo conjunto de escenarios (objetivo combinado
+energía+tiempo):
+
+| Método | Objetivo (↓ mejor) | w1 (energía) | w2 (batería) | w3 (capacidad) | w4 (espera) | w5 (balanceo) |
+|--------|--------------------|--------------|--------------|----------------|-------------|----------------|
+| Neutros (referencia) | 1.0000 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
+| Monte Carlo | 0.9963 | 0.07 | 0.04 | **0.49** | 0.12 | 0.28 |
+| **Algoritmo Genético** | **0.9957** | 0.06 | 0.01 | **0.73** | 0.09 | 0.11 |
+
+**Quién da mejores resultados:** el **Algoritmo Genético** encuentra los mejores
+pesos (objetivo 0.9957, ligeramente por debajo del 0.9963 de Monte Carlo). Las
+curvas de convergencia muestran cómo cada método mejora con el presupuesto de cómputo:
+
+![Convergencia del Algoritmo Genético](results/optimization/ga_convergence.png)
+
+![Convergencia de Monte Carlo](results/optimization/mc_convergence.png)
+
+### 7.2 Qué nos dice el resultado
+
+Los dos métodos coinciden en lo importante: **concentran casi todo el peso en `w3`
+(exceso de capacidad)**. Es decir, el factor que más influye en un buen reparto es
+**emparejar el tamaño del paquete con la capacidad del dron** (no malgastar el dron
+pesado en paquetes pequeños), seguido del balanceo de carga (`w5`); la penalización
+de batería (`w2`) y la de espera (`w4`) apenas aportan.
+
+La mejora sobre los pesos neutros es **pequeña (~0.4 %)**, lo cual es en sí mismo un
+resultado honesto: los pesos neutros ya eran una elección razonable, y la
+optimización sirve sobre todo para **identificar qué término gobierna el problema**
+(aquí, la capacidad).
 
 ---
 
