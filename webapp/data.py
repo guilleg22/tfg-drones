@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import (
-    Column, DateTime, Float, ForeignKey, Integer, MetaData, String, Table,
-    create_engine, func, select,
+    Column, DateTime, Float, ForeignKey, Integer, MetaData, String, Table, Text,
+    create_engine, delete, func, select, update,
 )
 
 from servicios.route_matcher import find_best_route
@@ -25,6 +25,7 @@ from servicios.route_matcher import find_best_route
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_SQLITE = "sqlite:///" + str(PROJECT_DIR / "operations.db")
 PROFILES_FILE = PROJECT_DIR / "route_profiles.json"
+PROFILES_KEY = "route_profiles"   # clave en la tabla config
 
 metadata = MetaData()
 
@@ -54,6 +55,23 @@ orders = Table(
     Column("created_at", DateTime, default=lambda: datetime.now(timezone.utc)),
 )
 
+# Administradores del portal (gestión de rutas y flota).
+admins = Table(
+    "admins", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("username", String(128), nullable=False, unique=True),
+    Column("password_hash", String(256), nullable=False),
+    Column("created_at", DateTime, default=lambda: datetime.now(timezone.utc)),
+)
+
+# Configuración clave/valor (JSON). Aquí persisten los perfiles de ruta, que en
+# Render no pueden vivir en un fichero porque el disco es efímero.
+config = Table(
+    "config", metadata,
+    Column("key", String(64), primary_key=True),
+    Column("value", Text, nullable=False),
+)
+
 
 def _normalize_url(url):
     # SQLAlchemy no acepta el viejo esquema postgres:// que sirven algunos
@@ -70,15 +88,74 @@ class DataStore:
         self.profiles_path = Path(profiles_path)
         metadata.create_all(self.engine)
 
+    # ── Configuración clave/valor ────────────────────────────────────────
+
+    def _get_config(self, key):
+        with self.engine.connect() as conn:
+            row = conn.execute(select(config.c.value).where(config.c.key == key)).first()
+        return row[0] if row else None
+
+    def _set_config(self, key, value):
+        with self.engine.begin() as conn:
+            exists = conn.execute(select(config.c.key).where(config.c.key == key)).first()
+            if exists:
+                conn.execute(update(config).where(config.c.key == key).values(value=value))
+            else:
+                conn.execute(config.insert().values(key=key, value=value))
+
+    # ── Perfiles de ruta (persistidos en BD, sembrados del fichero) ──────
+
+    def _seed_profiles(self):
+        try:
+            with open(self.profiles_path, "r", encoding="utf-8") as fp:
+                payload = json.load(fp)
+        except (OSError, json.JSONDecodeError):
+            return {"profiles": []}
+        return payload if isinstance(payload, dict) and "profiles" in payload else {"profiles": []}
+
+    def get_profiles(self):
+        """Documento de perfiles desde la BD; si no existe, lo siembra del fichero."""
+        raw = self._get_config(PROFILES_KEY)
+        if raw is None:
+            data = self._seed_profiles()
+            self.save_profiles(data)
+            return data
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {"profiles": []}
+
+    def save_profiles(self, data):
+        self._set_config(PROFILES_KEY, json.dumps(data, ensure_ascii=False))
+
     def _load_profiles(self):
-        with open(self.profiles_path, "r", encoding="utf-8") as fp:
-            payload = json.load(fp)
-        return payload.get("profiles", []) if isinstance(payload, dict) else []
+        return self.get_profiles().get("profiles", [])
 
     def _assign(self, lat, lon):
         if lat is None or lon is None:
             raise ValueError("Cliente sin coordenadas")
         return find_best_route(self._load_profiles(), float(lat), float(lon))
+
+    # ── Administradores ──────────────────────────────────────────────────
+
+    def count_admins(self):
+        with self.engine.connect() as conn:
+            return conn.execute(select(func.count()).select_from(admins)).scalar() or 0
+
+    def get_admin(self, username):
+        with self.engine.connect() as conn:
+            row = conn.execute(
+                select(admins.c.id, admins.c.username, admins.c.password_hash)
+                .where(admins.c.username == username)
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def create_admin(self, username, password_hash):
+        with self.engine.begin() as conn:
+            aid = conn.execute(
+                admins.insert().values(username=username, password_hash=password_hash)
+            ).inserted_primary_key[0]
+        return {"id": aid, "username": username}
 
     # ── Clientes ─────────────────────────────────────────────────────────
 
@@ -146,3 +223,20 @@ class DataStore:
                 assigned_distance_km=a["distance_km"],
             ))
         return a
+
+    def update_order(self, order_id, status=None, operational_state=None):
+        values = {}
+        if status is not None:
+            values["status"] = status
+        if operational_state is not None:
+            values["operational_state"] = operational_state
+        if not values:
+            return
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(orders).where(orders.c.id == int(order_id)).values(**values)
+            )
+
+    def delete_order(self, order_id):
+        with self.engine.begin() as conn:
+            conn.execute(delete(orders).where(orders.c.id == int(order_id)))

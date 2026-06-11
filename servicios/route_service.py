@@ -16,6 +16,19 @@ class RouteService:
         self.active_route_name = None
         self.load()
 
+    @classmethod
+    def from_profiles(cls, profiles_data):
+        """Crea una instancia a partir de un documento de perfiles en memoria,
+        sin tocar el fichero. La usa el portal cloud, que guarda los perfiles en
+        la base de datos en vez de en disco."""
+        inst = cls.__new__(cls)
+        inst.profiles_path = None
+        inst.profiles_data = profiles_data if isinstance(profiles_data, dict) else {"profiles": []}
+        inst.profiles_data.setdefault("profiles", [])
+        inst.active_profile_name = None
+        inst.active_route_name = None
+        return inst
+
     def load(self):
         if not self.profiles_path.exists():
             self.profiles_data = {"profiles": []}
